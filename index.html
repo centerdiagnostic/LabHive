@@ -352,7 +352,9 @@
                         <input type="number" step="any" id="guest-log-value" class="form-control" style="font-size: 2rem; padding: 1rem; text-align: center; height: auto;" required autofocus>
                     </div>
                     <button id="btn-save-guest" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 1rem; font-size: 1.1rem; margin-bottom: 1rem;">บันทึกข้อมูล</button>
-                    <button class="btn btn-outline" style="width: 100%; justify-content: center;" onclick="alert('กรุณาใช้กล้องมือถือสแกน QR โค้ดใหม่เพื่อเปลี่ยนอุปกรณ์')">สแกน QR โค้ดถัดไป</button>
+                    <button class="btn btn-outline" style="width: 100%; justify-content: center;" onclick="app.qrcode.startScanner()">
+                        <i data-lucide="scan"></i> สแกน QR โค้ดถัดไป
+                    </button>
                 </div>
             </div>
         </div>
@@ -871,20 +873,42 @@
             },
             download() {
                 const node = document.getElementById('qr-download-area');
-                html2canvas(node, { 
-                    scale: 3, 
-                    useCORS: true, 
-                    allowTaint: false, 
-                    logging: false,
-                    backgroundColor: '#ffffff',
-                    width: node.offsetWidth,
-                    height: node.offsetHeight
-                }).then(canvas => {
+                html2canvas(node, { scale: 3, useCORS: true, allowTaint: false, backgroundColor: '#ffffff' }).then(canvas => {
                     const link = document.createElement('a');
                     link.download = `Tag_${document.getElementById('qr-modal-equip-name').innerText}.png`;
                     link.href = canvas.toDataURL('image/png');
                     link.click();
                 });
+            },
+            // ฟังก์ชันใหม่สำหรับสแกนตัวถัดไป
+            startScanner() {
+                const scannerId = "guest-scanner-container";
+                let scannerDiv = document.getElementById(scannerId);
+                
+                if (!scannerDiv) {
+                    scannerDiv = document.createElement('div');
+                    scannerDiv.id = scannerId;
+                    scannerDiv.style.cssText = "position:fixed; inset:0; background:#000; z-index:9999; display:flex; flex-direction:column;";
+                    scannerDiv.innerHTML = `
+                        <div style="padding:1rem; color:white; display:flex; justify-content:space-between; align-items:center; background:#222;">
+                            <span>สแกน QR Code อุปกรณ์ถัดไป</span>
+                            <button onclick="location.reload()" style="background:none; border:none; color:white; font-size:1.5rem;">&times;</button>
+                        </div>
+                        <div id="reader" style="flex:1;"></div>
+                    `;
+                    document.body.appendChild(scannerDiv);
+                }
+
+                const html5QrCode = new Html5Qrcode("reader");
+                html5QrCode.start(
+                    { facingMode: "environment" }, 
+                    { fps: 10, qrbox: { width: 250, height: 250 } },
+                    (decodedText) => {
+                        html5QrCode.stop().then(() => {
+                            window.location.href = decodedText; // ไปยัง URL ของอุปกรณ์ถัดไป
+                        });
+                    }
+                ).catch(err => app.ui.showToast("ไม่สามารถเปิดกล้องได้", "error"));
             }
         };
 
@@ -944,16 +968,49 @@
                 } catch(e) { app.ui.showToast('บันทึกล้มเหลว', 'error'); }
             },
             async saveGuestLog(equipId, eqData) {
-                const value = parseFloat(document.getElementById('guest-log-value').value);
-                const logData = { equipmentId: equipId, value, timestamp: new Date().toISOString(), owner: eqData.owner, createdBy: 'Guest' };
+                const input = document.getElementById('guest-log-value');
+                const value = parseFloat(input.value);
+                if (isNaN(value)) return app.ui.showToast('กรุณากรอกตัวเลขที่ถูกต้อง', 'error');
+
+                const now = new Date();
+                const logData = { 
+                    equipmentId: equipId, 
+                    value, 
+                    timestamp: now.toISOString(), 
+                    dateKey: now.toISOString().split('T')[0],
+                    owner: eqData.owner, 
+                    createdBy: 'Guest (Scanner)' 
+                };
+
                 try {
-                    await addDoc(collection(db, app.collections.logs), logData);
-                    if (value < eqData.minThreshold || value > eqData.maxThreshold) {
-                        await addDoc(collection(db, app.collections.alerts), { equipmentId: equipId, value, minThreshold: eqData.minThreshold, maxThreshold: eqData.maxThreshold, timestamp: new Date().toISOString(), status: 'active', owner: eqData.owner });
+                    // ตรวจสอบและบันทึกข้อมูล (ทับค่าเดิมหากเป็นวันเดียวกันเหมือนระบบหลัก)
+                    const q = query(collection(db, "logs"), 
+                                    where("equipmentId", "==", equipId), 
+                                    where("dateKey", "==", logData.dateKey));
+                    const existing = await getDocs(q);
+
+                    if (!existing.empty) {
+                        await updateDoc(doc(db, "logs", existing.docs[0].id), logData);
+                    } else {
+                        await addDoc(collection(db, "logs"), logData);
                     }
-                    app.ui.showToast('บันทึกสำเร็จ', 'success');
-                    document.getElementById('guest-log-value').value = '';
-                } catch(e) { app.ui.showToast('บันทึกล้มเหลว', 'error'); }
+
+                    if (value < eqData.minThreshold || value > eqData.maxThreshold) {
+                        await addDoc(collection(db, "alerts"), { 
+                            equipmentId: equipId, value, minThreshold: eqData.minThreshold, 
+                            maxThreshold: eqData.maxThreshold, timestamp: now.toISOString(), 
+                            status: 'active', owner: eqData.owner 
+                        });
+                    }
+
+                    // แสดงแจ้งเตือนสำเร็จแบบชัดเจน
+                    app.ui.showToast(`บันทึกค่า ${value} สำเร็จแล้ว`, 'success');
+                    input.value = '';
+                    
+                } catch(e) { 
+                    console.error(e);
+                    app.ui.showToast('เกิดข้อผิดพลาดในการบันทึก', 'error'); 
+                }
             }
         };
 
@@ -994,13 +1051,20 @@
                 const ctx = document.getElementById('analytics-chart').getContext('2d');
                 if(app.chartInstance) app.chartInstance.destroy();
                 
-                const dataPoints = logs.map(l => ({ x: new Date(l.timestamp), y: l.value }));
+                // ปรับแกน X ให้แสดงเป็นวันที่ (เช่น 26 มี.ค.)
+                const labels = logs.map(l => {
+                    const d = new Date(l.timestamp);
+                    return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+                });
+
+                const dataPoints = logs.map(l => l.value);
                 const pointColors = logs.map(l => (l.value < eq.minThreshold || l.value > eq.maxThreshold) ? '#e53e3e' : '#ff6b00');
                 const baseline = parseFloat(eq.operatingValue) || null;
 
                 app.chartInstance = new Chart(ctx, {
                     type: 'line',
                     data: {
+                        labels: labels,
                         datasets: [{
                             label: `อ่านค่าจริง: ${eq.name}`,
                             data: dataPoints,
@@ -1020,7 +1084,7 @@
                                 suggestedMax: eq.maxThreshold + 5,
                                 title: { display: true, text: 'ค่าที่วัดได้' }
                             },
-                            x: { type: 'category', labels: logs.map(l => new Date(l.timestamp).toLocaleTimeString('th-TH')) }
+                            x: { title: { display: true, text: 'วันที่บันทึก' } }
                         },
                         plugins: {
                             annotation: {
@@ -1061,10 +1125,28 @@
                 const eq = app.data.equipment.find(e => e.id === id);
                 if(!eq) return;
 
-                // ถามผู้ใช้ว่าต้องการเดือนไหน (ใช้ HTML Input Month)
+                // 1. ตรวจสอบเดือนที่เลือกจากหน้าจอวิเคราะห์
                 const monthInput = document.getElementById('analytics-month-filter');
-                const selectedMonth = monthInput ? monthInput.value : new Date().toISOString().slice(0, 7);
-                
+                if(!monthInput) {
+                    alert("กรุณากดปุ่ม 'ดูกราฟ' เพื่อเลือกเดือนที่ต้องการออกรายงานก่อนครับ");
+                    return;
+                }
+                const selectedMonth = monthInput.value; // YYYY-MM
+
+                // 2. ดึงข้อมูล Log ใหม่เพื่อให้มั่นใจว่ากรองข้อมูลถูกต้องตามเดือนที่เลือกใน PDF
+                const qSnap = await getDocs(query(collection(db, app.collections.logs), 
+                                            where("equipmentId", "==", id), 
+                                            where("owner", "==", app.currentUser.uid)));
+                const logs = qSnap.docs
+                    .map(d=>d.data())
+                    .filter(l => l.timestamp.startsWith(selectedMonth))
+                    .sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+                if(logs.length === 0) {
+                    alert(`ไม่พบข้อมูลการบันทึกของเดือน ${selectedMonth} ไม่สามารถออกรายงานได้`);
+                    return;
+                }
+
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF();
 
@@ -1073,36 +1155,51 @@
                 doc.text(`Report Period: ${selectedMonth}`, 14, 28);
                 doc.text(`Exported: ${new Date().toLocaleString('th-TH')}`, 14, 34);
 
-                const tableData = [
-                    ["Field Name", "Details"],
+                // ตารางรายละเอียดอุปกรณ์
+                const infoTable = [
                     ["Equipment ID", eq.id],
                     ["Asset Number", eq.assetNumber || "-"],
                     ["Location", eq.location],
-                    ["Operating Target", eq.operatingValue || "-"],
-                    ["Safe Range", `${eq.minThreshold} - ${eq.maxThreshold}`],
-                    ["Category", eq.type]
+                    ["Safe Range", `${eq.minThreshold} - ${eq.maxThreshold}`]
                 ];
 
                 doc.autoTable({
                     startY: 40,
-                    head: [tableData[0]],
-                    body: tableData.slice(1),
+                    head: [["Field", "Information"]],
+                    body: infoTable,
                     theme: 'grid',
                     headStyles: { fillColor: [255, 107, 0] }
                 });
 
-                // ตรวจสอบว่ามีกราฟแสดงอยู่หรือไม่ และเป็นของเดือนที่เลือกไหม
+                // ตารางสรุปข้อมูลรายวันของเดือนนั้น
+                const logEntries = logs.map(l => [
+                    new Date(l.timestamp).toLocaleDateString('th-TH'),
+                    l.value,
+                    (l.value < eq.minThreshold || l.value > eq.maxThreshold) ? "Out of Range" : "Normal"
+                ]);
+
+                doc.autoTable({
+                    startY: doc.lastAutoTable.finalY + 10,
+                    head: [["Date", "Value", "Status"]],
+                    body: logEntries,
+                    theme: 'striped'
+                });
+
+                // แนบรูปกราฟที่แสดงอยู่ปัจจุบัน
                 if (app.chartInstance) {
                     try {
                         const imgData = app.chartInstance.toBase64Image();
-                        const lastY = doc.lastAutoTable.finalY || 120;
-                        doc.setFont("helvetica", "bold"); doc.text(`Data Trends (${selectedMonth}):`, 14, lastY + 15);
-                        doc.addImage(imgData, 'PNG', 15, lastY + 20, 180, 90);
-                    } catch(e) { console.warn("Chart attach failed", e); }
+                        const lastY = doc.lastAutoTable.finalY || 130;
+                        if (lastY > 180) doc.addPage(); // เพิ่มหน้าใหม่ถ้าพื้นที่ไม่พอ
+                        const chartY = lastY > 180 ? 20 : lastY + 10;
+                        doc.setFont("helvetica", "bold"); 
+                        doc.text(`Trend Analysis (${selectedMonth}):`, 14, chartY);
+                        doc.addImage(imgData, 'PNG', 15, chartY + 5, 180, 85);
+                    } catch(e) { console.warn("PDF Chart Error:", e); }
                 }
 
                 doc.save(`Report_${eq.id}_${selectedMonth}.pdf`);
-                app.ui.showToast(`ออกรายงานเดือน ${selectedMonth} สำเร็จ`);
+                app.ui.showToast(`ส่งออกรายงานประจำเดือน ${selectedMonth} เรียบร้อย`);
             }
         };
 
