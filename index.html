@@ -970,46 +970,67 @@
             async saveGuestLog(equipId, eqData) {
                 const input = document.getElementById('guest-log-value');
                 const value = parseFloat(input.value);
-                if (isNaN(value)) return app.ui.showToast('กรุณากรอกตัวเลขที่ถูกต้อง', 'error');
+                
+                if (isNaN(value)) {
+                    app.ui.showToast('กรุณากรอกตัวเลขที่ถูกต้อง', 'error');
+                    return;
+                }
+
+                // ปิดปุ่มชั่วคราวเพื่อป้องกันการกดซ้ำ
+                const btn = document.getElementById('btn-save-guest');
+                btn.disabled = true;
+                btn.innerText = "กำลังบันทึก...";
 
                 const now = new Date();
+                const todayStr = now.toISOString().split('T')[0];
+                
                 const logData = { 
                     equipmentId: equipId, 
                     value, 
                     timestamp: now.toISOString(), 
-                    dateKey: now.toISOString().split('T')[0],
+                    dateKey: todayStr,
                     owner: eqData.owner, 
                     createdBy: 'Guest (Scanner)' 
                 };
 
                 try {
-                    // ตรวจสอบและบันทึกข้อมูล (ทับค่าเดิมหากเป็นวันเดียวกันเหมือนระบบหลัก)
-                    const q = query(collection(db, "logs"), 
+                    // อ้างอิง Collection โดยตรงเพื่อความแม่นยำในหน้า Guest
+                    const logsRef = collection(db, "logs");
+                    const q = query(logsRef, 
                                     where("equipmentId", "==", equipId), 
-                                    where("dateKey", "==", logData.dateKey));
+                                    where("dateKey", "==", todayStr));
+                    
                     const existing = await getDocs(q);
 
                     if (!existing.empty) {
-                        await updateDoc(doc(db, "logs", existing.docs[0].id), logData);
+                        const docRef = doc(db, "logs", existing.docs[0].id);
+                        await updateDoc(docRef, logData);
                     } else {
-                        await addDoc(collection(db, "logs"), logData);
+                        await addDoc(logsRef, logData);
                     }
 
+                    // ตรวจสอบ Alert
                     if (value < eqData.minThreshold || value > eqData.maxThreshold) {
                         await addDoc(collection(db, "alerts"), { 
-                            equipmentId: equipId, value, minThreshold: eqData.minThreshold, 
-                            maxThreshold: eqData.maxThreshold, timestamp: now.toISOString(), 
-                            status: 'active', owner: eqData.owner 
+                            equipmentId: equipId, 
+                            value, 
+                            minThreshold: eqData.minThreshold, 
+                            maxThreshold: eqData.maxThreshold, 
+                            timestamp: now.toISOString(), 
+                            status: 'active', 
+                            owner: eqData.owner 
                         });
                     }
 
-                    // แสดงแจ้งเตือนสำเร็จแบบชัดเจน
-                    app.ui.showToast(`บันทึกค่า ${value} สำเร็จแล้ว`, 'success');
+                    app.ui.showToast(`บันทึกค่า ${value} เรียบร้อยแล้ว`, 'success');
                     input.value = '';
                     
                 } catch(e) { 
-                    console.error(e);
-                    app.ui.showToast('เกิดข้อผิดพลาดในการบันทึก', 'error'); 
+                    console.error("Save Error:", e);
+                    app.ui.showToast('บันทึกล้มเหลว: ' + e.message, 'error'); 
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = "บันทึกข้อมูล";
                 }
             }
         };
