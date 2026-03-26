@@ -411,9 +411,15 @@
                         <label class="form-label">ชื่ออุปกรณ์</label>
                         <input type="text" id="equip-name" class="form-control" required>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">หมายเลขครุภัณฑ์</label>
-                        <input type="text" id="equip-asset-number" class="form-control" required>
+                    <div class="flex gap-4">
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label">ยี่ห้อ (Brand)</label>
+                            <input type="text" id="equip-brand" class="form-control" placeholder="เช่น Thermo Scientific">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label">หมายเลขครุภัณฑ์</label>
+                            <input type="text" id="equip-asset-number" class="form-control" required>
+                        </div>
                     </div>
                     <div class="flex gap-4">
                         <div class="form-group" style="flex: 1;">
@@ -422,6 +428,8 @@
                                 <option value="Refrigerator 4 °C">Refrigerator 4 °C</option>
                                 <option value="Refrigerator -20 °C">Refrigerator -20 °C</option>
                                 <option value="Refrigerator -80 °C">Refrigerator -80 °C</option>
+                                <option value="Incubator">Incubator</option>
+                                <option value="Incubator CO2">Incubator CO2</option>
                             </select>
                         </div>
                         <div class="form-group" style="flex: 1;">
@@ -738,6 +746,7 @@
                 const detailContent = document.getElementById('detail-content');
                 detailContent.innerHTML = `
                     <div class="detail-item"><span class="detail-label">ชื่ออุปกรณ์</span><span class="detail-value">${eq.name}</span></div>
+                    <div class="detail-item"><span class="detail-label">ยี่ห้อ</span><span class="detail-value">${eq.brand || '-'}</span></div>
                     <div class="detail-item"><span class="detail-label">หมายเลขครุภัณฑ์</span><span class="detail-value">${eq.assetNumber || '-'}</span></div>
                     <div class="detail-item"><span class="detail-label">รหัสระบบ</span><span class="detail-value">${eq.id}</span></div>
                     <div class="detail-item"><span class="detail-label">สถานที่ติดตั้ง</span><span class="detail-value">${eq.location}</span></div>
@@ -770,6 +779,7 @@
                 const id = document.getElementById('equip-id').value;
                 const data = {
                     name: document.getElementById('equip-name').value,
+                    brand: document.getElementById('equip-brand').value,
                     assetNumber: document.getElementById('equip-asset-number').value,
                     type: document.getElementById('equip-type').value,
                     location: document.getElementById('equip-location').value,
@@ -800,8 +810,10 @@
                 const eq = app.data.equipment.find(e => e.id === id);
                 if(!eq) return;
                 app.ui.closeModal('modal-equip-detail');
+                document.getElementById('modal-equip-title').innerText = 'แก้ไขอุปกรณ์';
                 document.getElementById('equip-id').value = eq.id;
                 document.getElementById('equip-name').value = eq.name;
+                document.getElementById('equip-brand').value = eq.brand || '';
                 document.getElementById('equip-asset-number').value = eq.assetNumber || '';
                 document.getElementById('equip-type').value = eq.type;
                 document.getElementById('equip-location').value = eq.location;
