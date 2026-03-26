@@ -818,8 +818,32 @@
             async showAnalytics(id) {
                 const eq = app.data.equipment.find(e => e.id === id);
                 if(!eq) return;
-                const qSnap = await getDocs(query(collection(db, app.collections.logs), where("equipmentId", "==", id), where("owner", "==", app.currentUser.uid)));
-                const logs = qSnap.docs.map(d=>d.data()).sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+                
+                // สร้างตัวเลือกเดือนปี (Month Picker) ใน Modal
+                const modalBody = document.querySelector('#modal-analytics .modal-body');
+                const existingPicker = document.getElementById('analytics-month-filter');
+                if(!existingPicker) {
+                    const filterDiv = document.createElement('div');
+                    filterDiv.style.marginBottom = '1rem';
+                    filterDiv.innerHTML = `
+                        <label class="form-label">เลือกเดือนที่ต้องการดูข้อมูล:</label>
+                        <input type="month" id="analytics-month-filter" class="form-control" value="${new Date().toISOString().slice(0, 7)}">
+                    `;
+                    modalBody.prepend(filterDiv);
+                    document.getElementById('analytics-month-filter').onchange = () => app.equipment.showAnalytics(id);
+                }
+
+                const selectedMonth = document.getElementById('analytics-month-filter').value; // YYYY-MM
+                const qSnap = await getDocs(query(collection(db, app.collections.logs), 
+                                            where("equipmentId", "==", id), 
+                                            where("owner", "==", app.currentUser.uid)));
+                
+                // กรองเฉพาะเดือนที่เลือก
+                const logs = qSnap.docs
+                    .map(d=>d.data())
+                    .filter(l => l.timestamp.startsWith(selectedMonth))
+                    .sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+
                 app.ui.openModal('modal-analytics');
                 app.chart.render(eq, logs);
             }
@@ -879,14 +903,44 @@
                 const id = document.getElementById('log-equip-id').value;
                 const value = parseFloat(document.getElementById('log-value').value);
                 const eq = app.data.equipment.find(e => e.id === id);
-                const logData = { equipmentId: id, value, timestamp: new Date().toISOString(), owner: app.currentUser.uid, createdBy: app.currentUser.email };
+                const now = new Date();
+                const todayStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+                
+                const logData = { 
+                    equipmentId: id, 
+                    value, 
+                    timestamp: now.toISOString(), 
+                    dateKey: todayStr, // เพิ่มฟิลด์สำหรับเช็คการบันทึกซ้ำในวันเดียวกัน
+                    owner: app.currentUser.uid, 
+                    createdBy: app.currentUser.email 
+                };
+
                 try {
-                    await addDoc(collection(db, app.collections.logs), logData);
+                    // ตรวจสอบว่าวันนี้มีการบันทึกไปหรือยัง
+                    const q = query(collection(db, app.collections.logs), 
+                                    where("equipmentId", "==", id), 
+                                    where("dateKey", "==", todayStr));
+                    const existingLogs = await getDocs(q);
+
+                    if (!existingLogs.empty) {
+                        // ถ้ามีแล้ว ให้ Update ตัวล่าสุดแทนที่
+                        const docId = existingLogs.docs[0].id;
+                        await updateDoc(doc(db, app.collections.logs, docId), logData);
+                        app.ui.showToast('อัปเดตข้อมูลของวันนี้เรียบร้อยแล้ว');
+                    } else {
+                        // ถ้ายังไม่มี ให้สร้างใหม่
+                        await addDoc(collection(db, app.collections.logs), logData);
+                        app.ui.showToast('บันทึกข้อมูลเรียบร้อยแล้ว');
+                    }
+
                     if (value < eq.minThreshold || value > eq.maxThreshold) {
-                        await addDoc(collection(db, app.collections.alerts), { equipmentId: id, value, minThreshold: eq.minThreshold, maxThreshold: eq.maxThreshold, timestamp: new Date().toISOString(), status: 'active', owner: app.currentUser.uid });
+                        await addDoc(collection(db, app.collections.alerts), { 
+                            equipmentId: id, value, minThreshold: eq.minThreshold, 
+                            maxThreshold: eq.maxThreshold, timestamp: now.toISOString(), 
+                            status: 'active', owner: app.currentUser.uid 
+                        });
                     }
                     app.ui.closeModal('modal-log');
-                    app.ui.showToast('บันทึกข้อมูลเรียบร้อยแล้ว');
                 } catch(e) { app.ui.showToast('บันทึกล้มเหลว', 'error'); }
             },
             async saveGuestLog(equipId, eqData) {
@@ -1003,16 +1057,21 @@
                 const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Registry");
                 XLSX.writeFile(wb, `LabHive_Data_${Date.now()}.xlsx`);
             },
-            generateIndividualPDF(id) {
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF();
+            async generateIndividualPDF(id) {
                 const eq = app.data.equipment.find(e => e.id === id);
                 if(!eq) return;
 
+                // ถามผู้ใช้ว่าต้องการเดือนไหน (ใช้ HTML Input Month)
+                const monthInput = document.getElementById('analytics-month-filter');
+                const selectedMonth = monthInput ? monthInput.value : new Date().toISOString().slice(0, 7);
+                
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+
                 doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.text(`Equipment Report: ${eq.name}`, 14, 20);
                 doc.setFontSize(10); doc.setFont("helvetica", "normal");
-                doc.text(`Exported: ${new Date().toLocaleString('th-TH')}`, 14, 28);
-                doc.text(`Operator: ${app.currentUser.email}`, 14, 34);
+                doc.text(`Report Period: ${selectedMonth}`, 14, 28);
+                doc.text(`Exported: ${new Date().toLocaleString('th-TH')}`, 14, 34);
 
                 const tableData = [
                     ["Field Name", "Details"],
@@ -1032,19 +1091,18 @@
                     headStyles: { fillColor: [255, 107, 0] }
                 });
 
+                // ตรวจสอบว่ามีกราฟแสดงอยู่หรือไม่ และเป็นของเดือนที่เลือกไหม
                 if (app.chartInstance) {
                     try {
                         const imgData = app.chartInstance.toBase64Image();
                         const lastY = doc.lastAutoTable.finalY || 120;
-                        doc.setFont("helvetica", "bold"); doc.text("Telemetry Data Trends:", 14, lastY + 15);
+                        doc.setFont("helvetica", "bold"); doc.text(`Data Trends (${selectedMonth}):`, 14, lastY + 15);
                         doc.addImage(imgData, 'PNG', 15, lastY + 20, 180, 90);
-                    } catch(e) {
-                        console.warn("Could not attach chart to PDF", e);
-                    }
+                    } catch(e) { console.warn("Chart attach failed", e); }
                 }
 
-                doc.save(`Report_${eq.id}_${Date.now()}.pdf`);
-                app.ui.showToast('ออกรายงานสำเร็จ');
+                doc.save(`Report_${eq.id}_${selectedMonth}.pdf`);
+                app.ui.showToast(`ออกรายงานเดือน ${selectedMonth} สำเร็จ`);
             }
         };
 
