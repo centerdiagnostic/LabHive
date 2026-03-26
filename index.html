@@ -976,40 +976,23 @@
                     return;
                 }
 
-                // ปิดปุ่มชั่วคราวเพื่อป้องกันการกดซ้ำ
                 const btn = document.getElementById('btn-save-guest');
                 btn.disabled = true;
                 btn.innerText = "กำลังบันทึก...";
 
                 const now = new Date();
-                const todayStr = now.toISOString().split('T')[0];
-                
                 const logData = { 
                     equipmentId: equipId, 
                     value, 
                     timestamp: now.toISOString(), 
-                    dateKey: todayStr,
                     owner: eqData.owner, 
-                    createdBy: 'Guest (Scanner)' 
+                    createdBy: 'Guest' 
                 };
 
                 try {
-                    // อ้างอิง Collection โดยตรงเพื่อความแม่นยำในหน้า Guest
-                    const logsRef = collection(db, "logs");
-                    const q = query(logsRef, 
-                                    where("equipmentId", "==", equipId), 
-                                    where("dateKey", "==", todayStr));
+                    // ใช้ addDoc เหมือนเวอร์ชันแรกสุดที่ทำงานได้แน่นอน
+                    await addDoc(collection(db, "logs"), logData);
                     
-                    const existing = await getDocs(q);
-
-                    if (!existing.empty) {
-                        const docRef = doc(db, "logs", existing.docs[0].id);
-                        await updateDoc(docRef, logData);
-                    } else {
-                        await addDoc(logsRef, logData);
-                    }
-
-                    // ตรวจสอบ Alert
                     if (value < eqData.minThreshold || value > eqData.maxThreshold) {
                         await addDoc(collection(db, "alerts"), { 
                             equipmentId: equipId, 
@@ -1022,12 +1005,12 @@
                         });
                     }
 
-                    app.ui.showToast(`บันทึกค่า ${value} เรียบร้อยแล้ว`, 'success');
+                    app.ui.showToast('บันทึกสำเร็จ', 'success');
                     input.value = '';
                     
                 } catch(e) { 
                     console.error("Save Error:", e);
-                    app.ui.showToast('บันทึกล้มเหลว: ' + e.message, 'error'); 
+                    app.ui.showToast('บันทึกล้มเหลว', 'error'); 
                 } finally {
                     btn.disabled = false;
                     btn.innerText = "บันทึกข้อมูล";
