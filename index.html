@@ -174,7 +174,7 @@
         .stat-value { font-size: 2rem; font-weight: 700; color: var(--text-main); }
         .stat-label { font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; }
 
-        /* [ส่วน QR Code] จัดแต่งป้าย QR สำหรับดาวน์โหลดให้เป็น Flexbox กึ่งกลาง */
+        /* จัดแต่งป้าย QR สำหรับดาวน์โหลดให้เป็น Flexbox กึ่งกลาง */
         #qr-download-area {
             display: flex;
             flex-direction: column;
@@ -240,7 +240,7 @@
                 </div>
             </nav>
             <div class="sidebar-footer">
-                <div id="user-info" style="margin-bottom: 0.75rem; font-weight: 500; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; padding: 0 0.5rem;"></div>
+                <div id="user-info" style="margin-bottom: 0.5rem; font-weight: 500; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis;"></div>
                 <button id="btn-logout" class="btn btn-outline" style="width: 100%; justify-content: center; font-size: 0.8rem; padding: 0.5rem;">
                     <i data-lucide="log-out"></i> ออกจากระบบ
                 </button>
@@ -295,8 +295,8 @@
                         <div class="flex justify-between items-center" style="margin-bottom: 1.5rem;">
                             <h3>จัดการทะเบียนอุปกรณ์ของฉัน</h3>
                             <div class="flex gap-2">
-                                <button class="btn btn-outline" onclick="app.export.generatePDF()"><i data-lucide="file-text"></i> PDF ทั้งหมด</button>
-                                <button class="btn btn-outline" onclick="app.export.generateExcel()"><i data-lucide="file-spreadsheet"></i> Excel</button>
+                                <button class="btn btn-outline" onclick="app.export.generatePDF()"><i data-lucide="file-text"></i> ส่งออก PDF ทั้งหมด</button>
+                                <button class="btn btn-outline" onclick="app.export.generateExcel()"><i data-lucide="file-spreadsheet"></i> ส่งออก Excel</button>
                                 <button class="btn btn-primary" onclick="app.ui.openModal('modal-equipment')"><i data-lucide="plus"></i> ลงทะเบียนใหม่</button>
                             </div>
                         </div>
@@ -337,7 +337,6 @@
             <div style="max-width: 400px; width: 100%; background: white; padding: 2rem; border-radius: 12px; box-shadow: var(--shadow); text-align: center;">
                 <img src="https://kvdc-vetku.com/wp-content/uploads/2026/03/1.png" alt="KVDC Logo" style="height: 60px; margin: 0 auto 1rem;">
                 <h2 style="margin-bottom: 0.5rem;">บันทึกค่าอุปกรณ์</h2>
-                <p class="text-muted" style="margin-bottom: 1.5rem;">โหมดผู้มาเยือน (Guest Mode)</p>
                 
                 <div id="guest-equip-info" style="background: var(--bg); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
                     <h3 id="guest-equip-name" class="text-primary" style="margin-bottom: 0.5rem;">กำลังโหลดข้อมูล...</h3>
@@ -361,7 +360,7 @@
 
     <!-- Modals -->
 
-    <!-- [ส่วนใหม่] Modal: รายละเอียดอุปกรณ์ -->
+    <!-- Modal: รายละเอียดอุปกรณ์ -->
     <div id="modal-equip-detail" class="modal-overlay">
         <div class="modal">
             <div class="modal-header">
@@ -432,7 +431,6 @@
                         <label class="form-label">คำอธิบายเพิ่มเติม</label>
                         <textarea id="equip-desc" class="form-control" rows="2"></textarea>
                     </div>
-                    <!-- ฟิลด์ใหม่: ค่าที่ใช้งาน -->
                     <div class="form-group">
                         <label class="form-label">ค่าที่ใช้งาน (Operating Value)</label>
                         <input type="text" id="equip-operating-value" class="form-control" placeholder="เช่น 4" required>
@@ -521,7 +519,6 @@
     <!-- คอนเทนเนอร์สำหรับแจ้งเตือนแบบ Pop-up มุมขวาบน (Toasts) -->
     <div id="toast-container" class="toast-container"></div>
 
-    <!-- [ทำความสะอาด] เปลี่ยน src เสียงแจ้งเตือนเป็นลิงก์สั้น -->
     <audio id="audio-alert" src="https://raw.githubusercontent.com/rafael-m-silva/alarm-clock/master/public/alarm.mp3"></audio>
 
     <script type="module">
@@ -713,7 +710,6 @@
                 });
                 app.listeners.push(unsub);
             },
-            // [ส่วนตาราง]: ลบคอลัมน์ "จัดการ" ออก และเมื่อคลิกที่ <tr> ให้เรียก showDetail
             renderList() {
                 const active = app.data.equipment.filter(e => !e.isDeleted && e.owner === app.currentUser.uid);
                 const tbody = document.querySelector('#table-equipment tbody');
@@ -721,7 +717,7 @@
                 
                 active.forEach(eq => {
                     const tr = document.createElement('tr');
-                    tr.onclick = () => this.showDetail(eq.id); // คลิกแถวเพื่อเปิดรายละเอียด
+                    tr.onclick = () => this.showDetail(eq.id);
 
                     tr.innerHTML = `
                         <td><strong>${eq.name}</strong><br><span style="font-size:0.75rem; color:var(--text-muted)">รหัส: ${eq.id}</span></td>
@@ -733,7 +729,6 @@
                 });
                 lucide.createIcons(); 
             },
-            // ฟังก์ชันแสดงข้อมูลอุปกรณ์เชิงลึกใน Modal
             showDetail(id) {
                 const eq = app.data.equipment.find(e => e.id === id);
                 if(!eq) return;
@@ -753,7 +748,6 @@
                 `;
 
                 const footerActions = document.getElementById('detail-footer-actions');
-                // [ปรับปรุงหน้าจอ]: เพิ่มปุ่ม "ออกรายงานพร้อมกราฟ"
                 footerActions.innerHTML = `
                     <button class="btn btn-primary" onclick="app.ui.closeModal('modal-equip-detail'); app.logs.openModal('${eq.id}')"><i data-lucide="activity"></i> บันทึกค่า</button>
                     <button class="btn btn-outline" onclick="app.equipment.showAnalytics('${eq.id}')"><i data-lucide="bar-chart-2"></i> ดูกราฟ</button>
@@ -788,13 +782,11 @@
                 try {
                     if (id) {
                         await updateDoc(doc(db, app.collections.equipment, id), data);
-                        app.audit.log('UPDATE_EQUIPMENT', id, `แก้ไขการตั้งค่าอุปกรณ์`);
                     } else {
                         const newId = Math.floor(1000 + Math.random() * 9000).toString();
                         data.createdAt = new Date().toISOString();
                         data.owner = app.currentUser.uid; 
                         await setDoc(doc(db, app.collections.equipment, newId), data);
-                        app.audit.log('CREATE_EQUIPMENT', newId, `สร้างอุปกรณ์ ${data.name}`);
                     }
                     app.ui.closeModal('modal-equipment');
                     app.ui.showToast('บันทึกข้อมูลอุปกรณ์สำเร็จ');
@@ -834,10 +826,9 @@
         };
 
         // ==========================================
-        // โมดูล QR Code (แก้ไข CORS & Download)
+        // โมดูล QR Code 
         // ==========================================
         app.qrcode = {
-            // [แก้ไขฟังก์ชัน app.qrcode.show]: ใช้ Proxy เพื่อแก้ปัญหา CORS
             async show(id) {
                 const eq = app.data.equipment.find(e => e.id === id);
                 if(!eq) return;
@@ -846,7 +837,6 @@
                 const qrContainer = document.getElementById('qr-modal-code-container');
                 qrContainer.innerHTML = '';
                 
-                // ใช้ Proxy Service เพื่อดึงรูปข้าม Domain
                 const logoUrl = "https://wsrv.nl/?url=kvdc-vetku.com/wp-content/uploads/2026/03/1.png";
                 document.getElementById('qr-logo-container').innerHTML = `<img src="${logoUrl}" crossOrigin="anonymous" style="height: 60px; display: block; margin: 0 auto;">`;
 
@@ -855,13 +845,13 @@
                 app.qrInstance = new QRCode(qrContainer, { text: scanUrl, width: 160, height: 160, colorDark : "#000000", colorLight : "#ffffff" });
                 app.ui.openModal('modal-qrcode');
             },
-            // [แก้ไขฟังก์ชัน app.qrcode.download]: ปรับออปชัน html2canvas
             download() {
                 const node = document.getElementById('qr-download-area');
                 html2canvas(node, { 
                     scale: 3, 
                     useCORS: true, 
-                    allowTaint: true, 
+                    allowTaint: false, 
+                    logging: false,
                     backgroundColor: '#ffffff',
                     width: node.offsetWidth,
                     height: node.offsetHeight
@@ -946,7 +936,6 @@
         // 7. โมดูลสร้างกราฟ (CHART.JS VISUALIZATION)
         // ==========================================
         app.chart = {
-            // [ส่วนกราฟ]: เซ็ตมาตราส่วน Y และวาดเส้น Baseline
             render(eq, logs) {
                 const ctx = document.getElementById('analytics-chart').getContext('2d');
                 if(app.chartInstance) app.chartInstance.destroy();
@@ -982,9 +971,7 @@
                         plugins: {
                             annotation: {
                                 annotations: {
-                                    // โซนปลอดภัย
                                     safeBox: { type: 'box', yMin: eq.minThreshold, yMax: eq.maxThreshold, backgroundColor: 'rgba(56, 161, 105, 0.05)', borderWidth: 0 },
-                                    // เส้น Baseline ตามค่าที่ตั้งไว้
                                     baseLine: {
                                         type: 'line', yMin: baseline, yMax: baseline,
                                         borderColor: 'rgba(255, 107, 0, 0.7)', borderWidth: 2, borderDash: [6, 4],
@@ -1016,7 +1003,6 @@
                 const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Registry");
                 XLSX.writeFile(wb, `LabHive_Data_${Date.now()}.xlsx`);
             },
-            // [เพิ่มระบบออกรายงานรายบุคคลพร้อมกราฟ]
             generateIndividualPDF(id) {
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF();
@@ -1046,7 +1032,6 @@
                     headStyles: { fillColor: [255, 107, 0] }
                 });
 
-                // แทรกรูปกราฟหากมีการเปิดหน้ากราฟไว้อยู่
                 if (app.chartInstance) {
                     try {
                         const imgData = app.chartInstance.toBase64Image();
@@ -1073,18 +1058,31 @@
             if (scanId) {
                 document.getElementById('login-screen').style.display = 'none';
                 document.getElementById('guest-screen').classList.remove('hidden');
+                
+                const guestTag = document.querySelector('#guest-screen p.text-muted');
+                if(guestTag) guestTag.remove();
+
                 try {
-                    await signInAnonymously(auth);
-                    const docRef = await getDoc(doc(db, app.collections.equipment, scanId));
-                    if(docRef.exists()) {
-                        const eq = {id: docRef.id, ...docRef.data()};
-                        document.getElementById('guest-equip-name').innerText = eq.name;
-                        document.getElementById('guest-equip-asset').innerText = "ครุภัณฑ์: " + (eq.assetNumber || '-');
-                        document.getElementById('guest-equip-range').innerText = `ช่วงปลอดภัย: [${eq.minThreshold} - ${eq.maxThreshold}]`;
-                        document.getElementById('guest-form-area').classList.remove('hidden');
-                        document.getElementById('btn-save-guest').onclick = () => app.logs.saveGuestLog(scanId, eq);
-                    } else { document.getElementById('guest-equip-name').innerText = "ไม่พบอุปกรณ์"; }
-                } catch(e) { console.error(e); }
+                    const userCredential = await signInAnonymously(auth);
+                    if (userCredential.user) {
+                        const docRef = await getDoc(doc(db, app.collections.equipment, scanId));
+                        if(docRef.exists()) {
+                            const eq = {id: docRef.id, ...docRef.data()};
+                            document.getElementById('guest-equip-name').innerText = eq.name;
+                            document.getElementById('guest-equip-asset').innerText = "ครุภัณฑ์: " + (eq.assetNumber || '-');
+                            document.getElementById('guest-equip-range').innerText = `ช่วงปลอดภัย: [${eq.minThreshold} - ${eq.maxThreshold}]`;
+                            document.getElementById('guest-form-area').classList.remove('hidden');
+                            document.getElementById('btn-save-guest').onclick = () => app.logs.saveGuestLog(scanId, eq);
+                        } else {
+                            document.getElementById('guest-equip-name').innerText = "ไม่พบข้อมูลอุปกรณ์ในระบบ";
+                        }
+                    }
+                } catch(e) {
+                    console.error("Guest Access Error:", e);
+                    document.getElementById('guest-equip-name').innerText = "ข้อผิดพลาดในการเข้าถึง";
+                    document.getElementById('guest-error-area').innerText = "ไม่สามารถโหลดข้อมูลได้ โปรดตรวจสอบการเชื่อมต่อหรือสิทธิ์การเข้าถึง";
+                    document.getElementById('guest-error-area').classList.remove('hidden');
+                }
             } else {
                 app.auth.init();
             }
