@@ -1051,21 +1051,28 @@
         // ==========================================
         // จุดเริ่มต้นของระบบ (BOOTSTRAP)
         // ==========================================
-        window.onload = async () => {
+        window.onload = () => {
             const urlParams = new URLSearchParams(window.location.search);
             const scanId = urlParams.get('scan');
-            
+
             if (scanId) {
+                // เคลียร์ UI โหมดปกติ
                 document.getElementById('login-screen').style.display = 'none';
                 document.getElementById('guest-screen').classList.remove('hidden');
                 
+                // ลบข้อความ "โหมดผู้มาเยือน" ออก
                 const guestTag = document.querySelector('#guest-screen p.text-muted');
-                if(guestTag) guestTag.remove();
+                if(guestTag && guestTag.innerText.includes("โหมดผู้มาเยือน")) guestTag.remove();
 
-                try {
-                    const userCredential = await signInAnonymously(auth);
-                    if (userCredential.user) {
-                        const docRef = await getDoc(doc(db, app.collections.equipment, scanId));
+                // ใช้ onAuthStateChanged เพื่อรอให้ Auth นิ่งก่อนดึงข้อมูล
+                const unsubAuth = onAuthStateChanged(auth, async (user) => {
+                    if (!user) {
+                        await signInAnonymously(auth);
+                        return; // เดี๋ยวฟังก์ชันนี้จะทำงานอีกรอบเมื่อ Auth สำเร็จ
+                    }
+
+                    try {
+                        const docRef = await getDoc(doc(db, "equipment", scanId));
                         if(docRef.exists()) {
                             const eq = {id: docRef.id, ...docRef.data()};
                             document.getElementById('guest-equip-name').innerText = eq.name;
@@ -1073,16 +1080,18 @@
                             document.getElementById('guest-equip-range').innerText = `ช่วงปลอดภัย: [${eq.minThreshold} - ${eq.maxThreshold}]`;
                             document.getElementById('guest-form-area').classList.remove('hidden');
                             document.getElementById('btn-save-guest').onclick = () => app.logs.saveGuestLog(scanId, eq);
+                            unsubAuth(); // หยุดฟัง Auth เมื่อโหลดข้อมูลสำเร็จแล้ว
                         } else {
-                            document.getElementById('guest-equip-name').innerText = "ไม่พบข้อมูลอุปกรณ์ในระบบ";
+                            document.getElementById('guest-equip-name').innerText = "ไม่พบข้อมูลอุปกรณ์";
+                            document.getElementById('guest-equip-asset').innerText = "โปรดตรวจสอบ QR Code อีกครั้ง";
                         }
+                    } catch(e) {
+                        console.error("Firestore Error:", e);
+                        document.getElementById('guest-equip-name').innerText = "การเข้าถึงถูกปฏิเสธ";
+                        document.getElementById('guest-error-area').innerText = "โปรดตรวจสอบสิทธิ์ (Rules) ใน Firebase Firestore";
+                        document.getElementById('guest-error-area').classList.remove('hidden');
                     }
-                } catch(e) {
-                    console.error("Guest Access Error:", e);
-                    document.getElementById('guest-equip-name').innerText = "ข้อผิดพลาดในการเข้าถึง";
-                    document.getElementById('guest-error-area').innerText = "ไม่สามารถโหลดข้อมูลได้ โปรดตรวจสอบการเชื่อมต่อหรือสิทธิ์การเข้าถึง";
-                    document.getElementById('guest-error-area').classList.remove('hidden');
-                }
+                });
             } else {
                 app.auth.init();
             }
