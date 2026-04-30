@@ -1582,7 +1582,7 @@
                     });
 
                     // ชี้ API ไปที่ Server บน Render.com
-                    const response = await fetch('https://intraflow-srv-d7as9aedqaus73c365eg.onrender.com/api/export-temp-log', {
+                    const response = await fetch('https://intraflow.onrender.com/api/export-temp-log', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ eq, logs, thMonth, year, month, chartBase64, userMap })
