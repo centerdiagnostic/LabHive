@@ -398,6 +398,14 @@
                         <input type="password" id="new-user-pwd" class="form-control" required placeholder="อย่างน้อย 6 ตัวอักษร">
                     </div>
                     <div class="form-group">
+                        <label class="form-label">ชื่อ - นามสกุล</label>
+                        <input type="text" id="new-user-name" class="form-control" required placeholder="เช่น สมชาย ใจดี">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">รูปลายเซ็น (ถ้ามี)</label>
+                        <input type="file" id="new-user-signature" class="form-control" accept="image/png, image/jpeg">
+                    </div>
+                    <div class="form-group">
                         <label class="form-label">บทบาท (Role)</label>
                         <select id="new-user-role" class="form-control">
                             <option value="user">User (ผู้ใช้งานทั่วไป)</option>
@@ -836,18 +844,32 @@
             async createUser() {
                 const email = document.getElementById('new-user-email').value;
                 const pwd = document.getElementById('new-user-pwd').value;
+                const name = document.getElementById('new-user-name').value;
                 const role = document.getElementById('new-user-role').value;
                 const lab = document.getElementById('new-user-lab').value;
+                const sigFile = document.getElementById('new-user-signature').files[0];
 
-                if (!email || pwd.length < 6) return app.ui.showToast('กรุณากรอกอีเมล และรหัสผ่านอย่างน้อย 6 ตัวอักษร', 'error');
+                if (!email || pwd.length < 6 || !name) return app.ui.showToast('กรุณากรอกข้อมูลให้ครบถ้วน (อีเมล, รหัสผ่าน, ชื่อ)', 'error');
 
                 try {
+                    app.ui.showToast('กำลังสร้างบัญชี...', 'success');
+                    let signatureBase64 = null;
+                    if (sigFile) {
+                        signatureBase64 = await new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onload = (e) => resolve(e.target.result);
+                            reader.readAsDataURL(sigFile);
+                        });
+                    }
+
                     // ใช้ secondaryAuth เพื่อให้แอดมินสร้าง User ได้โดยที่ตัวเองไม่หลุดออกจากระบบ
                     const userCred = await createUserWithEmailAndPassword(secondaryAuth, email, pwd);
                     
                     await setDoc(doc(db, app.collections.users, userCred.user.uid), {
                         uid: userCred.user.uid,
                         email: email,
+                        name: name,
+                        signature: signatureBase64,
                         role: role,
                         lab: lab,
                         owner: userCred.user.uid,
@@ -1549,12 +1571,22 @@
                 tempCanvas.remove();
 
                 try {
+                    // ดึงข้อมูลผู้ใช้งานทั้งหมดเพื่อเอา ชื่อ และ ลายเซ็น ไปจับคู่ใน PDF
+                    const usersSnap = await getDocs(collection(db, app.collections.users));
+                    const userMap = {};
+                    usersSnap.forEach(doc => {
+                        const data = doc.data();
+                        if (data.email) {
+                            userMap[data.email] = { name: data.name, signature: data.signature };
+                        }
+                    });
+
                     // หาก Deploy Server ขึ้น Render.com แล้ว ให้เปลี่ยน URL นี้เป็นโดเมนของคุณ
                     // เช่น 'https://intraflow.onrender.com/api/export-temp-log'
                     const response = await fetch('http://localhost:3000/api/export-temp-log', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ eq, logs, thMonth, year, month, chartBase64 })
+                        body: JSON.stringify({ eq, logs, thMonth, year, month, chartBase64, userMap })
                     });
 
                     if (!response.ok) throw new Error('Network response was not ok');
