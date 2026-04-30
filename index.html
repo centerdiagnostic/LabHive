@@ -235,10 +235,11 @@
                 <div class="nav-item" data-view="equipment">
                     <i data-lucide="microscope"></i> ทะเบียนอุปกรณ์
                 </div>
-                <div class="nav-item" data-view="alerts">
-                    <i data-lucide="bell"></i> การแจ้งเตือนฉุกเฉิน
+                <div class="nav-item hidden" id="nav-admin" data-view="admin">
+                    <i data-lucide="users"></i> จัดการผู้ใช้งาน
                 </div>
             </nav>
+
             <div class="sidebar-footer">
                 <div id="user-info" style="margin-bottom: 0.5rem; font-weight: 500; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis;"></div>
                 <button id="btn-logout" class="btn btn-outline" style="width: 100%; justify-content: center; font-size: 0.8rem; padding: 0.5rem;">
@@ -320,16 +321,35 @@
                         <h3 class="text-danger" style="margin-bottom: 1.5rem;"><i data-lucide="alert-triangle"></i> การแจ้งเตือนระบบฉุกเฉิน (Active)</h3>
                         <div class="table-wrapper">
                             <table id="table-alerts">
-                                <thead><tr><th>วันเวลา</th><th>รหัสอุปกรณ์</th><th>ค่าที่พบความผิดปกติ</th><th>เงื่อนไขที่ละเมิด</th><th>การจัดการ</th></tr></thead>
+                                <thead>
+                                    <tr>
+                                        <th>วันเวลา</th>
+                                        <th>รหัสอุปกรณ์</th>
+                                        <th>ค่าที่พบความผิดปกติ</th>
+                                        <th>เงื่อนไขที่ละเมิด</th>
+                                        <th>การจัดการ</th>
+                                    </tr>
+                                </thead>
                                 <tbody></tbody>
                             </table>
                         </div>
                     </div>
                 </div>
 
-            </div>
-        </main>
-    </div>
+                <div id="view-admin" class="view-section hidden">
+                    <div class="card">
+                        <div class="flex justify-between items-center" style="margin-bottom: 1.5rem;">
+                            <h3>จัดการผู้ใช้งานระบบ (Admin Only)</h3>
+                            <button class="btn btn-primary" onclick="app.ui.openModal('modal-add-user')"><i data-lucide="user-plus"></i> เพิ่มผู้ใช้ใหม่</button>
+                        </div>
+                        <div class="table-wrapper">
+                            <table id="table-users">
+                                <thead><tr><th>อีเมล</th><th>บทบาท (Role)</th><th>ห้องปฏิบัติการ (Lab)</th><th>เข้าสู่ระบบล่าสุด</th></tr></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
 
     <!-- โหมด Guest Scan -->
     <div id="guest-screen" class="hidden" style="position: fixed; inset: 0; background: var(--bg); z-index: 5000; overflow-y: auto;">
@@ -361,7 +381,55 @@
     </div>
 
     <!-- Modals -->
-
+<div id="modal-add-user" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>เพิ่มผู้ใช้งานใหม่</h3>
+                <button class="btn-icon" onclick="app.ui.closeModal('modal-add-user')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="form-add-user">
+                    <div class="form-group">
+                        <label class="form-label">อีเมลผู้ใช้งาน</label>
+                        <input type="email" id="new-user-email" class="form-control" required placeholder="user@labhive.com">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">รหัสผ่านชั่วคราว</label>
+                        <input type="password" id="new-user-pwd" class="form-control" required placeholder="อย่างน้อย 6 ตัวอักษร">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">บทบาท (Role)</label>
+                        <select id="new-user-role" class="form-control">
+                            <option value="user">User (ผู้ใช้งานทั่วไป)</option>
+                            <option value="admin">Admin (ผู้ดูแลระบบ)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">ห้องปฏิบัติการประจำ (Lab)</label>
+                        <select id="new-user-lab" class="form-control">
+                            <option value="">-- เลือกห้องปฏิบัติการ (ถ้ามี) --</option>
+                            <option value="AI">AI</option>
+                            <option value="BI">BI</option>
+                            <option value="SE">SE</option>
+                            <option value="VI">VI</option>
+                            <option value="ZN">ZN</option>
+                            <option value="MT">MT</option>
+                            <option value="WQ">WQ</option>
+                            <option value="MI">MI</option>
+                            <option value="HI">HI</option>
+                            <option value="FS">FS</option>
+                            <option value="SM">SM</option>
+                            <option value="PA">PA</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="app.ui.closeModal('modal-add-user')">ยกเลิก</button>
+                <button class="btn btn-primary" onclick="app.admin.createUser()"><i data-lucide="save"></i> สร้างบัญชี</button>
+            </div>
+        </div>
+    </div>
     <!-- Modal: รายละเอียดอุปกรณ์ -->
     <div id="modal-equip-detail" class="modal-overlay">
         <div class="modal">
@@ -537,7 +605,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, updatePassword, onAuthStateChanged, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+       import { getAuth, signInWithEmailAndPassword, updatePassword, onAuthStateChanged, signOut, signInAnonymously, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ==========================================
@@ -555,6 +623,9 @@
         const fbApp = initializeApp(firebaseConfig);
         const auth = getAuth(fbApp);
         const db = getFirestore(fbApp);
+        // สร้าง Secondary App สำหรับจัดการสร้าง User ใหม่จากหน้า Admin โดยไม่ทำให้เซสชันแอดมินหลุด
+        const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
+        const secondaryAuth = getAuth(secondaryApp);
 
         window.app = {
             currentUser: null,
@@ -638,12 +709,25 @@
                                 lastLogin: new Date().toISOString()
                             }, {merge: true});
 
-                            app.currentUser = { uid: user.uid, email: user.email, role: 'user' };
+                            const userDocRef = await getDoc(doc(db, app.collections.users, user.uid));
+                            const userData = userDocRef.exists() ? userDocRef.data() : { role: 'user', lab: '' };
+                            app.currentUser = { uid: user.uid, email: user.email, role: userData.role, lab: userData.lab };
                             
-                            const isFirstLogin = (user.metadata.creationTime === user.metadata.lastSignInTime) && !localStorage.getItem(`pwd_changed_${user.uid}`);
+                            if (userData.role === 'admin') {
+                                const navAdmin = document.getElementById('nav-admin');
+                                if (navAdmin) {
+                                    navAdmin.classList.remove('hidden');
+                                }
+                            }
                             
-                            if (isFirstLogin) {
+                            // ตรวจสอบว่าเป็น login ครั้งแรกหรือไม่
+                            const isFirstLogin = (user.metadata.creationTime === user.metadata.lastSignInTime);
+                            const hasChangedPwd = localStorage.getItem(`pwd_changed_${user.uid}`);
+                            
+                            if (isFirstLogin && !hasChangedPwd) {
+                                // ซ่อนหน้า Login และแสดงเฉพาะ Modal เปลี่ยนรหัสผ่าน บังคับให้ทำ
                                 document.getElementById('login-screen').style.display = 'none';
+                                document.getElementById('app-screen').classList.add('hidden'); // กันเหนียว
                                 app.ui.openModal('modal-force-pwd');
                             } else {
                                 app.auth.applyRBAC(); 
@@ -681,15 +765,32 @@
             },
             async updateFirstPassword() {
                 const newPwd = document.getElementById('new-pwd').value;
+                const btn = document.querySelector('#modal-force-pwd .btn-primary');
+
                 if(newPwd.length < 6) return app.ui.showToast('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร', 'error');
                 
                 try {
+                    btn.disabled = true;
+                    btn.innerText = 'กำลังบันทึก...';
+                    
+                    // 1. สั่ง Update Password ไปที่ Firebase Auth
                     await updatePassword(auth.currentUser, newPwd);
+                    
+                    // 2. บันทึกลง LocalStorage เพื่อบอกว่าเปลี่ยนแล้ว (หรือจะทำเป็น field ใน Firestore ก็ได้)
                     localStorage.setItem(`pwd_changed_${auth.currentUser.uid}`, 'true');
+                    
+                    app.ui.showToast('อัปเดตรหัสผ่านสำเร็จ ระบบกำลังพาคุณเข้าสู่หน้าหลัก', 'success');
+                    
+                    // 3. ปิด Modal แล้วเข้าแอป
                     app.ui.closeModal('modal-force-pwd');
-                    app.ui.showToast('อัปเดตรหัสผ่านสำเร็จ', 'success');
-                    app.auth.applyRBAC(); 
+                    setTimeout(() => {
+                        app.auth.applyRBAC();
+                    }, 1000);
+
                 } catch(e) {
+                    btn.disabled = false;
+                    btn.innerText = 'ยืนยันการเปลี่ยนรหัสผ่าน';
+                    console.error(e);
                     app.ui.showToast('เกิดข้อผิดพลาด: ' + e.message, 'error');
                 }
             },
@@ -703,16 +804,73 @@
 
                 app.equipment.initListener();
                 app.alerts.initListener();
+                if(app.currentUser.role === 'admin') app.admin.initListener();
                 app.views.show('dashboard');
             }
-        };
+            };
 
         // ==========================================
-        // 5. โมดูลจัดการอุปกรณ์ (EQUIPMENT)
+        // โมดูลจัดการผู้ใช้งาน (ADMIN ONLY)
         // ==========================================
+        app.admin = {
+            initListener() {
+                const unsub = onSnapshot(collection(db, app.collections.users), (snap) => {
+                    const users = snap.docs.map(d => d.data());
+                    const tbody = document.querySelector('#table-users tbody');
+                    if (!tbody) return;
+                    tbody.innerHTML = '';
+                    users.forEach(u => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${u.email}</td>
+                            <td><span class="badge ${u.role === 'admin' ? 'badge-alert' : 'badge-active'}">${u.role}</span></td>
+                            <td>${u.lab || '-'}</td>
+                            <td>${u.lastLogin ? app.ui.formatDate(u.lastLogin) : '-'}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                    lucide.createIcons();
+                });
+                app.listeners.push(unsub);
+            },
+            async createUser() {
+                const email = document.getElementById('new-user-email').value;
+                const pwd = document.getElementById('new-user-pwd').value;
+                const role = document.getElementById('new-user-role').value;
+                const lab = document.getElementById('new-user-lab').value;
+
+                if (!email || pwd.length < 6) return app.ui.showToast('กรุณากรอกอีเมล และรหัสผ่านอย่างน้อย 6 ตัวอักษร', 'error');
+
+                try {
+                    // ใช้ secondaryAuth เพื่อให้แอดมินสร้าง User ได้โดยที่ตัวเองไม่หลุดออกจากระบบ
+                    const userCred = await createUserWithEmailAndPassword(secondaryAuth, email, pwd);
+                    
+                    await setDoc(doc(db, app.collections.users, userCred.user.uid), {
+                        uid: userCred.user.uid,
+                        email: email,
+                        role: role,
+                        lab: lab,
+                        owner: userCred.user.uid,
+                        createdAt: new Date().toISOString()
+                    });
+
+                    app.ui.closeModal('modal-add-user');
+                    app.ui.showToast('สร้างบัญชีผู้ใช้งานสำเร็จ', 'success');
+                    document.getElementById('form-add-user').reset();
+                    await secondaryAuth.signOut(); 
+
+                } catch (e) {
+                    console.error("Error creating user:", e);
+                    app.ui.showToast('ไม่สามารถสร้างผู้ใช้ได้: ' + e.message, 'error');
+                }
+            }
+        };
         app.equipment = {
             initListener() {
-                const q = query(collection(db, app.collections.equipment), where("owner", "==", app.currentUser.uid));
+                let q = query(collection(db, app.collections.equipment));
+                if (app.currentUser.role !== 'admin') {
+                    q = query(collection(db, app.collections.equipment), where("lab", "==", app.currentUser.lab));
+                }
                 const unsub = onSnapshot(q, 
                 (snap) => {
                     app.data.equipment = snap.docs.map(d => ({id: d.id, ...d.data()}));
@@ -725,7 +883,11 @@
                 app.listeners.push(unsub);
             },
             renderList() {
-                const active = app.data.equipment.filter(e => !e.isDeleted && e.owner === app.currentUser.uid);
+                const active = app.data.equipment.filter(e => {
+                    if (e.isDeleted) return false;
+                    if (app.currentUser.role === 'admin') return true;
+                    return e.owner === app.currentUser.uid;
+                });
                 const tbody = document.querySelector('#table-equipment tbody');
                 tbody.innerHTML = '';
                 
@@ -775,7 +937,11 @@
                 app.ui.openModal('modal-equip-detail');
             },
             updateStats() {
-                const active = app.data.equipment.filter(e => !e.isDeleted && e.owner === app.currentUser.uid);
+                const active = app.data.equipment.filter(e => {
+                    if (e.isDeleted) return false;
+                    if (app.currentUser.role === 'admin') return true;
+                    return e.owner === app.currentUser.uid;
+                });
                 document.getElementById('stat-equip').innerText = active.length;
             },
             async save() {
@@ -1150,7 +1316,10 @@
 
         app.alerts = {
             initListener() {
-                const q = query(collection(db, app.collections.alerts), where("owner", "==", app.currentUser.uid));
+                let q = query(collection(db, app.collections.alerts));
+                if (app.currentUser.role !== 'admin') {
+                    q = query(collection(db, app.collections.alerts), where("lab", "==", app.currentUser.lab));
+                }
                 onSnapshot(q, (snap) => {
                     app.data.alerts = snap.docs.map(d => ({id: d.id, ...d.data()}));
                     this.renderList(); this.updateStats();
