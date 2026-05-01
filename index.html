@@ -571,6 +571,31 @@
     </div>
 
     <!-- Modal: ดูกราฟประวัติศาสตร์ -->
+    <div id="modal-edit-log" class="modal-overlay">
+        <div class="modal" style="max-width: 400px; width: 95%;">
+            <div class="modal-header">
+                <h3>แก้ไขข้อมูลการบันทึก</h3>
+                <button class="btn-icon" onclick="app.ui.closeModal('modal-edit-log')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-log-id">
+                <input type="hidden" id="edit-log-eq-id">
+                <div class="form-group">
+                    <label class="form-label">ค่าอุณหภูมิที่วัดได้ (°C)</label>
+                    <input type="number" step="any" id="edit-log-val" class="form-control" required>
+                </div>
+                <div class="form-group hidden" id="edit-log-co2-group">
+                    <label class="form-label">ค่า CO₂ ที่วัดได้ (%)</label>
+                    <input type="number" step="any" id="edit-log-co2" class="form-control">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="app.ui.closeModal('modal-edit-log')">ยกเลิก</button>
+                <button class="btn btn-primary" id="btn-save-edit-log" onclick="app.logs.saveEditLog()">บันทึกการแก้ไข</button>
+            </div>
+        </div>
+    </div>
+
     <div id="modal-log-history" class="modal-overlay">
         <div class="modal" style="max-width: 800px; width: 95%;">
             <div class="modal-header">
@@ -1414,28 +1439,51 @@
                     app.ui.showToast('เกิดข้อผิดพลาดในการลบ', 'error');
                 }
             },
-            async editLogPrompt(logId, oldVal, oldCo2, eqType, eqId) {
-                let newVal = prompt(`กรุณากรอกค่าอุณหภูมิใหม่ (ค่าเดิม: ${oldVal})`, oldVal);
-                if (newVal === null) return;
-                newVal = parseFloat(newVal);
+            editLogPrompt(logId, oldVal, oldCo2, eqType, eqId) {
+                document.getElementById('edit-log-id').value = logId;
+                document.getElementById('edit-log-eq-id').value = eqId;
+                document.getElementById('edit-log-val').value = oldVal;
+
+                const co2Group = document.getElementById('edit-log-co2-group');
+                if (eqType === 'Incubator CO2') {
+                    co2Group.classList.remove('hidden');
+                    document.getElementById('edit-log-co2').value = oldCo2 || '';
+                } else {
+                    co2Group.classList.add('hidden');
+                }
+
+                app.ui.openModal('modal-edit-log');
+            },
+            async saveEditLog() {
+                const logId = document.getElementById('edit-log-id').value;
+                const eqId = document.getElementById('edit-log-eq-id').value;
+                const newVal = parseFloat(document.getElementById('edit-log-val').value);
+
                 if (isNaN(newVal)) return app.ui.showToast('ค่าอุณหภูมิไม่ถูกต้อง', 'error');
 
                 let updateData = { value: newVal };
 
-                if (eqType === 'Incubator CO2') {
-                    let newCo2 = prompt(`กรุณากรอกค่า CO2 ใหม่ (ค่าเดิม: ${oldCo2})`, oldCo2);
-                    if (newCo2 === null) return;
-                    newCo2 = parseFloat(newCo2);
+                const co2Group = document.getElementById('edit-log-co2-group');
+                if (!co2Group.classList.contains('hidden')) {
+                    const newCo2 = parseFloat(document.getElementById('edit-log-co2').value);
                     if (isNaN(newCo2)) return app.ui.showToast('ค่า CO2 ไม่ถูกต้อง', 'error');
                     updateData.co2Value = newCo2;
                 }
 
+                const btn = document.getElementById('btn-save-edit-log');
+                btn.disabled = true;
+                btn.innerText = 'กำลังบันทึก...';
+
                 try {
                     await updateDoc(doc(db, app.collections.logs, logId), updateData);
                     app.ui.showToast('แก้ไขข้อมูลสำเร็จ', 'success');
+                    app.ui.closeModal('modal-edit-log');
                     this.showHistory(eqId);
                 } catch(e) {
                     app.ui.showToast('เกิดข้อผิดพลาดในการแก้ไข', 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = 'บันทึกการแก้ไข';
                 }
             }
         };
@@ -1521,6 +1569,16 @@
                 }
 
                 const baseline = metric === 'value' ? (parseFloat(eq.operatingValue) || null) : null;
+                
+                // หาค่าต่ำสุด-สูงสุดที่แท้จริงจากข้อมูลเพื่อไม่ให้กราฟตกขอบ และซูมกราฟให้เห็นชัดเจน
+                const allVals = [...dataMorning, ...dataAfternoon].filter(v => v !== null);
+                const safeMin = Math.min(eq.minThreshold, eq.maxThreshold);
+                const safeMax = Math.max(eq.minThreshold, eq.maxThreshold);
+                const dataMin = allVals.length > 0 ? Math.min(...allVals) : safeMin;
+                const dataMax = allVals.length > 0 ? Math.max(...allVals) : safeMax;
+                const chartYMin = Math.floor(Math.min(safeMin, dataMin)) - 2;
+                const chartYMax = Math.ceil(Math.max(safeMax, dataMax)) + 2;
+
                 const datasets = [
                     {
                         label: `รอบเช้า (${metric === 'value' ? 'อุณหภูมิ' : 'CO₂'})`,
@@ -1554,7 +1612,7 @@
                         maintainAspectRatio: false,
                         scales: {
                             y: { 
-                                ...(metric === 'value' ? { suggestedMin: Math.min(eq.minThreshold, eq.maxThreshold) - 5, suggestedMax: Math.max(eq.minThreshold, eq.maxThreshold) + 5 } : { beginAtZero: true }),
+                                ...(metric === 'value' ? { min: chartYMin, max: chartYMax, ticks: { stepSize: 1 } } : { beginAtZero: true }),
                                 title: { display: true, text: yTitle }
                             },
                             x: { title: { display: true, text: 'วันที่บันทึก' } }
@@ -1638,6 +1696,15 @@
                 tempCanvas.style.display = 'none';
                 document.body.appendChild(tempCanvas);
 
+                // คำนวณช่วงของกราฟ PDF ให้พอดีเหมือนหน้าเว็บ
+                const allValsPDF = [...dataMorning, ...dataAfternoon].filter(v => v !== null);
+                const safeMinPDF = Math.min(eq.minThreshold, eq.maxThreshold);
+                const safeMaxPDF = Math.max(eq.minThreshold, eq.maxThreshold);
+                const dataMinPDF = allValsPDF.length > 0 ? Math.min(...allValsPDF) : safeMinPDF;
+                const dataMaxPDF = allValsPDF.length > 0 ? Math.max(...allValsPDF) : safeMaxPDF;
+                const chartYMinPDF = Math.floor(Math.min(safeMinPDF, dataMinPDF)) - 2;
+                const chartYMaxPDF = Math.ceil(Math.max(safeMaxPDF, dataMaxPDF)) + 2;
+
                 const baseline = parseFloat(eq.operatingValue) || null;
                 const tempChart = new Chart(tempCanvas.getContext('2d'), {
                     type: 'line',
@@ -1651,7 +1718,7 @@
                     options: { 
                         animation: false, responsive: false,
                         scales: { 
-                            y: { suggestedMin: Math.min(eq.minThreshold, eq.maxThreshold) - 5, suggestedMax: Math.max(eq.minThreshold, eq.maxThreshold) + 5 },
+                            y: { min: chartYMinPDF, max: chartYMaxPDF, ticks: { stepSize: 1 } },
                             x: { title: { display: true, text: 'วันที่บันทึก' } }
                         },
                         plugins: {
