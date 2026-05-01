@@ -638,8 +638,27 @@
             try {
                 await signInAnonymously(auth);
                 console.log("Anonymous login success");
+
+                // 🔥 โหลดข้อมูล equipment
+                const docRef = doc(db, "equipment", scanId);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+
+                    // 🔥 แสดงข้อมูลลงหน้า (ทดสอบง่ายสุด)
+                    document.body.innerHTML = `
+                        <h1>Equipment</h1>
+                        <p><b>Name:</b> ${data.name || "-"}</p>
+                        <p><b>Lab:</b> ${data.lab || "-"}</p>
+                    `;
+                } else {
+                    document.body.innerHTML = "<h2>ไม่พบข้อมูลอุปกรณ์</h2>";
+                }
+
             } catch (e) {
-                console.error("Anonymous login failed:", e);
+                console.error("ERROR:", e);
+                document.body.innerHTML = "<h2>เกิด error (ดู console)</h2>";
             }
         }
         // สร้าง Secondary App สำหรับจัดการสร้าง User ใหม่จากหน้า Admin โดยไม่ทำให้เซสชันแอดมินหลุด
