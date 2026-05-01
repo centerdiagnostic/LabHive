@@ -1083,8 +1083,7 @@
                 document.getElementById('analytics-month-filter').onchange = (e) => app.equipment.showAnalytics(id, e.target.value);
 
                 const qSnap = await getDocs(query(collection(db, app.collections.logs), 
-                                            where("equipmentId", "==", id), 
-                                            where("owner", "==", app.currentUser.uid)));
+                                            where("equipmentId", "==", id)));
                 
                 const logs = qSnap.docs
                     .map(d=>d.data())
@@ -1465,7 +1464,7 @@
                         maintainAspectRatio: false,
                         scales: {
                             y: { 
-                                ...(metric === 'value' ? { min: eq.minThreshold, max: eq.maxThreshold } : { beginAtZero: true }),
+                                ...(metric === 'value' ? { suggestedMin: Math.min(eq.minThreshold, eq.maxThreshold) - 5, suggestedMax: Math.max(eq.minThreshold, eq.maxThreshold) + 5 } : { beginAtZero: true }),
                                 title: { display: true, text: yTitle }
                             },
                             x: { title: { display: true, text: 'วันที่บันทึก' } }
@@ -1473,7 +1472,7 @@
                         plugins: {
                             annotation: {
                                 annotations: metric === 'value' ? {
-                                    safeBox: { type: 'box', yMin: eq.minThreshold, yMax: eq.maxThreshold, backgroundColor: 'rgba(56, 161, 105, 0.05)', borderWidth: 0 },
+                                    safeBox: { type: 'box', yMin: Math.min(eq.minThreshold, eq.maxThreshold), yMax: Math.max(eq.minThreshold, eq.maxThreshold), backgroundColor: 'rgba(56, 161, 105, 0.05)', borderWidth: 0 },
                                     baseLine: {
                                         type: 'line', yMin: baseline, yMax: baseline,
                                         borderColor: 'rgba(255, 107, 0, 0.7)', borderWidth: 2, borderDash: [6, 4],
@@ -1514,8 +1513,7 @@
                 const thMonth = new Date(year, month - 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
 
                 const qSnap = await getDocs(query(collection(db, app.collections.logs), 
-                                            where("equipmentId", "==", id), 
-                                            where("owner", "==", app.currentUser.uid)));
+                                            where("equipmentId", "==", id)));
                 const logs = qSnap.docs
                     .map(d=>d.data())
                     .filter(l => l.timestamp.startsWith(selectedMonth))
@@ -1563,13 +1561,13 @@
                     options: { 
                         animation: false, responsive: false,
                         scales: { 
-                            y: { min: eq.minThreshold, max: eq.maxThreshold },
+                            y: { suggestedMin: Math.min(eq.minThreshold, eq.maxThreshold) - 5, suggestedMax: Math.max(eq.minThreshold, eq.maxThreshold) + 5 },
                             x: { title: { display: true, text: 'วันที่บันทึก' } }
                         },
                         plugins: {
                             annotation: {
                                 annotations: {
-                                    safeBox: { type: 'box', yMin: eq.minThreshold, yMax: eq.maxThreshold, backgroundColor: 'rgba(56, 161, 105, 0.05)', borderWidth: 0 },
+                                    safeBox: { type: 'box', yMin: Math.min(eq.minThreshold, eq.maxThreshold), yMax: Math.max(eq.minThreshold, eq.maxThreshold), backgroundColor: 'rgba(56, 161, 105, 0.05)', borderWidth: 0 },
                                     baseLine: {
                                         type: 'line', yMin: baseline, yMax: baseline,
                                         borderColor: 'rgba(255, 107, 0, 0.7)', borderWidth: 2, borderDash: [6, 4],
