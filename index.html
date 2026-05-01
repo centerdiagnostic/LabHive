@@ -1672,7 +1672,7 @@
         // ==========================================
         // จุดเริ่มต้นของระบบ (BOOTSTRAP)
         // ==========================================
-        const initApp = () => {
+        const initApp = async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const scanId = urlParams.get('scan');
 
@@ -1690,6 +1690,7 @@
                     if (!user) {
                         try {
                             await signInAnonymously(auth);
+                            return; // รอให้ callback ทำงานรอบใหม่
                         } catch (err) {
                             console.error("Auth Error:", err);
                             document.getElementById('guest-equip-name').innerText = "ระบบไม่พร้อมใช้งาน";
@@ -1700,7 +1701,17 @@
                     }
 
                     try {
-                        const docRef = await getDoc(doc(db, "equipment", scanId));
+                        let docRef;
+                        try {
+                            docRef = await getDoc(doc(db, "equipment", scanId));
+                        } catch (err) {
+                            console.error("Firestore Error:", err);
+                            document.getElementById('guest-equip-name').innerText = "โหลดข้อมูลไม่สำเร็จ";
+                            document.getElementById('guest-error-area').innerText = err.message;
+                            document.getElementById('guest-error-area').classList.remove('hidden');
+                            return;
+                        }
+
                         if(docRef.exists()) {
                             const eq = {id: docRef.id, ...docRef.data()};
                             document.getElementById('guest-equip-name').innerText = eq.name;
@@ -1726,7 +1737,14 @@
         };
 
         // เรียกทำงานทันที เนื่องจาก Module script รันหลังจาก DOM พร้อมใช้งานแล้วเสมอ
-        initApp();
+        document.addEventListener("DOMContentLoaded", async () => {
+    try {
+        await initApp();
+    } catch (e) {
+        console.error("INIT ERROR:", e);
+        document.body.innerHTML = "<h2 style='text-align:center;margin-top:50px;'>เกิดข้อผิดพลาดในการโหลดระบบ</h2>";
+    }
+});
 
     </script>
 </body>
