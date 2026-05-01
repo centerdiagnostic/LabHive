@@ -370,6 +370,13 @@
                 <div id="guest-error-area" class="hidden text-danger" style="margin-bottom: 1.5rem; font-weight: 500;"></div>
 
                 <div id="guest-form-area" class="hidden">
+                    <div class="form-group text-left" style="margin-bottom: 1rem;">
+                        <label class="form-label" style="font-size: 1rem; text-align: center; display: block;">รอบเวลาบันทึก (Shift)</label>
+                        <select id="guest-log-shift" class="form-control" style="font-size: 1.2rem; padding: 0.8rem; text-align: center;">
+                            <option value="เช้า">รอบเช้า</option>
+                            <option value="บ่าย">รอบบ่าย</option>
+                        </select>
+                    </div>
                     <div class="form-group text-left">
                         <label class="form-label" style="font-size: 1rem; text-align: center;">ค่าอุณหภูมิที่วัดได้</label>
                         <input type="number" step="any" id="guest-log-value" class="form-control" style="font-size: 2rem; padding: 1rem; text-align: center; height: auto;" required autofocus>
@@ -1292,6 +1299,7 @@
             async saveGuestLog(equipId, eqData) {
                 const input = document.getElementById('guest-log-value');
                 const value = parseFloat(input.value);
+                const shift = document.getElementById('guest-log-shift').value;
                 
                 if (isNaN(value)) {
                     app.ui.showToast('กรุณากรอกตัวเลขที่ถูกต้อง', 'error');
@@ -1303,9 +1311,12 @@
                 btn.innerText = "กำลังบันทึก...";
 
                 const now = new Date();
+                const todayStr = now.toISOString().split('T')[0];
                 const logData = { 
                     equipmentId: equipId, 
                     value, 
+                    shift: shift,
+                    dateKey: todayStr,
                     timestamp: now.toISOString(), 
                     owner: eqData.owner, 
                     createdBy: 'Guest' 
@@ -1722,6 +1733,10 @@
                                 guestName.innerText = eq.name;
                                 document.getElementById('guest-equip-asset').innerText = "ครุภัณฑ์: " + (eq.assetNumber || '-');
                                 document.getElementById('guest-equip-range').innerText = `ช่วงปลอดภัย: [${eq.minThreshold} - ${eq.maxThreshold}]`;
+                                
+                                const currentHour = new Date().getHours();
+                                document.getElementById('guest-log-shift').value = currentHour < 12 ? 'เช้า' : 'บ่าย';
+                                
                                 document.getElementById('guest-form-area').classList.remove('hidden');
                                 document.getElementById('btn-save-guest').onclick = () => app.logs.saveGuestLog(scanId, eq);
                                 unsubAuth();
