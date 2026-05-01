@@ -571,6 +571,25 @@
     </div>
 
     <!-- Modal: ดูกราฟประวัติศาสตร์ -->
+    <div id="modal-log-history" class="modal-overlay">
+        <div class="modal" style="max-width: 800px; width: 95%;">
+            <div class="modal-header">
+                <h3>ประวัติการบันทึกค่าอุปกรณ์</h3>
+                <button class="btn-icon" onclick="app.ui.closeModal('modal-log-history')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-wrapper">
+                    <table id="table-log-history">
+                        <thead>
+                            <tr><th>วันที่/เวลา</th><th>รอบ</th><th>ค่าที่วัดได้</th><th>ผู้บันทึก</th><th>จัดการ</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="modal-analytics" class="modal-overlay">
         <div class="modal" style="max-width: 800px; width: 95%;">
             <div class="modal-header">
@@ -959,6 +978,7 @@
                 const footerActions = document.getElementById('detail-footer-actions');
                 footerActions.innerHTML = `
                     <button class="btn btn-primary" onclick="app.ui.closeModal('modal-equip-detail'); app.logs.openModal('${eq.id}')"><i data-lucide="activity"></i> บันทึกค่า</button>
+                    <button class="btn btn-outline" onclick="app.logs.showHistory('${eq.id}')"><i data-lucide="history"></i> ประวัติ</button>
                     <button class="btn btn-outline" onclick="app.equipment.showAnalytics('${eq.id}')"><i data-lucide="bar-chart-2"></i> ดูกราฟ</button>
                     <button class="btn btn-outline" onclick="app.qrcode.show('${eq.id}')"><i data-lucide="qr-code"></i> QR Code</button>
                     <button class="btn btn-outline" style="border-color: #3498db; color: #3498db;" onclick="app.export.generateIndividualPDF('${eq.id}')"><i data-lucide="file-down"></i> ออกรายงานพร้อมกราฟ</button>
@@ -1260,7 +1280,9 @@
                     if (eq.type === 'Incubator CO2') {
                         logData.co2Value = parseFloat(document.getElementById('log-co2').value);
                     }
-                    if (value < eq.minThreshold || value > eq.maxThreshold) {
+                    const safeMin = Math.min(eq.minThreshold, eq.maxThreshold);
+                    const safeMax = Math.max(eq.minThreshold, eq.maxThreshold);
+                    if (value < safeMin || value > safeMax) {
                         isAlert = true;
                         alertValue = value;
                     }
@@ -1325,7 +1347,9 @@
                     // ใช้ addDoc เหมือนเวอร์ชันแรกสุดที่ทำงานได้แน่นอน
                     await addDoc(collection(db, "logs"), logData);
                     
-                    if (value < eqData.minThreshold || value > eqData.maxThreshold) {
+                    const safeMin = Math.min(eqData.minThreshold, eqData.maxThreshold);
+                    const safeMax = Math.max(eqData.minThreshold, eqData.maxThreshold);
+                    if (value < safeMin || value > safeMax) {
                         await addDoc(collection(db, "alerts"), { 
                             equipmentId: equipId, 
                             value, 
@@ -1346,6 +1370,72 @@
                 } finally {
                     btn.disabled = false;
                     btn.innerText = "บันทึกข้อมูล";
+                }
+            },
+            async showHistory(id) {
+                const eq = app.data.equipment.find(e => e.id === id);
+                if(!eq) return;
+                
+                app.ui.showToast('กำลังโหลดประวัติ...', 'success');
+                const qSnap = await getDocs(query(collection(db, app.collections.logs), where("equipmentId", "==", id)));
+                let logs = qSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                // เรียงจากใหม่ไปเก่า (เวลาล่าสุดอยู่บนสุด)
+                logs.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+                
+                const tbody = document.querySelector('#table-log-history tbody');
+                tbody.innerHTML = '';
+                
+                logs.forEach(l => {
+                    const tr = document.createElement('tr');
+                    const valText = l.co2Value !== undefined ? `${l.value} °C / ${l.co2Value}% CO₂` : `${l.value}`;
+                    tr.innerHTML = `
+                        <td>${app.ui.formatDate(l.timestamp)}</td>
+                        <td>${l.shift || '-'}</td>
+                        <td><strong class="text-primary">${valText}</strong></td>
+                        <td>${l.createdBy || 'Guest'}</td>
+                        <td>
+                            <button class="btn btn-icon" title="แก้ไข" onclick="app.logs.editLogPrompt('${l.id}', '${l.value}', '${l.co2Value || ''}', '${eq.type}', '${id}')"><i data-lucide="edit"></i></button>
+                            <button class="btn btn-icon text-danger" title="ลบ" onclick="app.logs.deleteLog('${l.id}', '${id}')"><i data-lucide="trash-2"></i></button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                
+                lucide.createIcons({root: document.getElementById('modal-log-history')});
+                app.ui.openModal('modal-log-history');
+            },
+            async deleteLog(logId, eqId) {
+                if(!confirm('ยืนยันการลบข้อมูลประวัตินี้ถาวร?')) return;
+                try {
+                    await deleteDoc(doc(db, app.collections.logs, logId));
+                    app.ui.showToast('ลบข้อมูลสำเร็จ', 'success');
+                    this.showHistory(eqId);
+                } catch(e) {
+                    app.ui.showToast('เกิดข้อผิดพลาดในการลบ', 'error');
+                }
+            },
+            async editLogPrompt(logId, oldVal, oldCo2, eqType, eqId) {
+                let newVal = prompt(`กรุณากรอกค่าอุณหภูมิใหม่ (ค่าเดิม: ${oldVal})`, oldVal);
+                if (newVal === null) return;
+                newVal = parseFloat(newVal);
+                if (isNaN(newVal)) return app.ui.showToast('ค่าอุณหภูมิไม่ถูกต้อง', 'error');
+
+                let updateData = { value: newVal };
+
+                if (eqType === 'Incubator CO2') {
+                    let newCo2 = prompt(`กรุณากรอกค่า CO2 ใหม่ (ค่าเดิม: ${oldCo2})`, oldCo2);
+                    if (newCo2 === null) return;
+                    newCo2 = parseFloat(newCo2);
+                    if (isNaN(newCo2)) return app.ui.showToast('ค่า CO2 ไม่ถูกต้อง', 'error');
+                    updateData.co2Value = newCo2;
+                }
+
+                try {
+                    await updateDoc(doc(db, app.collections.logs, logId), updateData);
+                    app.ui.showToast('แก้ไขข้อมูลสำเร็จ', 'success');
+                    this.showHistory(eqId);
+                } catch(e) {
+                    app.ui.showToast('เกิดข้อผิดพลาดในการแก้ไข', 'error');
                 }
             }
         };
