@@ -1672,7 +1672,7 @@
         // ==========================================
         // จุดเริ่มต้นของระบบ (BOOTSTRAP)
         // ==========================================
-        window.onload = () => {
+        const initApp = () => {
             const urlParams = new URLSearchParams(window.location.search);
             const scanId = urlParams.get('scan');
 
@@ -1688,7 +1688,14 @@
                 // ใช้ onAuthStateChanged เพื่อรอให้ Auth นิ่งก่อนดึงข้อมูล
                 const unsubAuth = onAuthStateChanged(auth, async (user) => {
                     if (!user) {
-                        await signInAnonymously(auth);
+                        try {
+                            await signInAnonymously(auth);
+                        } catch (err) {
+                            console.error("Auth Error:", err);
+                            document.getElementById('guest-equip-name').innerText = "ระบบไม่พร้อมใช้งาน";
+                            document.getElementById('guest-error-area').innerText = "กรุณาเปิดใช้งาน Login แบบ Anonymous ใน Firebase Console";
+                            document.getElementById('guest-error-area').classList.remove('hidden');
+                        }
                         return; // เดี๋ยวฟังก์ชันนี้จะทำงานอีกรอบเมื่อ Auth สำเร็จ
                     }
 
@@ -1717,6 +1724,9 @@
                 app.auth.init();
             }
         };
+
+        // เรียกทำงานทันที เนื่องจาก Module script รันหลังจาก DOM พร้อมใช้งานแล้วเสมอ
+        initApp();
 
     </script>
 </body>
