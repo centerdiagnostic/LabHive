@@ -563,9 +563,15 @@
                         <label class="form-label">คำอธิบายเพิ่มเติม</label>
                         <textarea id="equip-desc" class="form-control" rows="2"></textarea>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">ค่าที่ใช้งาน (Operating Value)</label>
-                        <input type="text" id="equip-operating-value" class="form-control" placeholder="เช่น 4" required>
+                    <div class="flex gap-4">
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label">ค่าที่ใช้งาน (Operating Value)</label>
+                            <input type="text" id="equip-operating-value" class="form-control" placeholder="เช่น 4" required>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label">ค่าแก้ (Correction) เช่น +0.5, -0.2</label>
+                            <input type="number" step="any" id="equip-correction" class="form-control" value="0" required>
+                        </div>
                     </div>
                     <div class="flex gap-4">
                         <div class="form-group" style="flex: 1;">
@@ -1066,6 +1072,7 @@
                     <div class="detail-item"><span class="detail-label">รหัสระบบ</span><span class="detail-value">${eq.id}</span></div>
                     <div class="detail-item"><span class="detail-label">สถานที่ติดตั้ง</span><span class="detail-value">${eq.location}</span></div>
                     <div class="detail-item"><span class="detail-label">ค่าที่ใช้งาน (Op)</span><span class="detail-value">${eq.operatingValue || '-'}</span></div>
+                    <div class="detail-item"><span class="detail-label">ค่าแก้ (Correction)</span><span class="detail-value text-primary">${eq.correctionValue > 0 ? '+' + eq.correctionValue : (eq.correctionValue || '0')}</span></div>
                     <div class="detail-item"><span class="detail-label">ช่วงปลอดภัย (Min - Max)</span><span class="detail-value text-primary">${eq.minThreshold} - ${eq.maxThreshold}</span></div>
                     <div class="form-group" style="margin-top: 1rem;">
                         <label class="form-label">คำอธิบายเพิ่มเติม</label>
@@ -1114,6 +1121,7 @@
                     location: document.getElementById('equip-location').value,
                     description: document.getElementById('equip-desc').value,
                     operatingValue: document.getElementById('equip-operating-value').value,
+                    correctionValue: parseFloat(document.getElementById('equip-correction').value) || 0,
                     minThreshold: parseFloat(document.getElementById('equip-min').value),
                     maxThreshold: parseFloat(document.getElementById('equip-max').value),
                     isDeleted: false,
@@ -1146,6 +1154,7 @@
                 document.getElementById('equip-location').value = eq.location;
                 document.getElementById('equip-desc').value = eq.description;
                 document.getElementById('equip-operating-value').value = eq.operatingValue || '';
+                document.getElementById('equip-correction').value = eq.correctionValue || 0;
                 document.getElementById('equip-min').value = eq.minThreshold;
                 document.getElementById('equip-max').value = eq.maxThreshold;
                 app.ui.openModal('modal-equipment');
@@ -1708,6 +1717,7 @@
                 
                 const metric = window.currentMetricFilter === 'co2' && eq.type === 'Incubator CO2' ? 'co2Value' : 'value';
                 const yTitle = metric === 'co2Value' ? 'ค่า CO₂ (%)' : 'ค่าอุณหภูมิ (°C)';
+                const corr = metric === 'value' ? (parseFloat(eq.correctionValue) || 0) : 0;
                 
                 for (let i = 1; i <= daysInMonth; i++) {
                     labels.push(`${i} ${monthShortName}`);
@@ -1718,7 +1728,8 @@
                     const logAfternoon = dailyLogs.find(l => l.shift === 'บ่าย');
                     
                     if (logMorning) {
-                        const val = metric === 'co2Value' ? logMorning.co2Value : logMorning.value;
+                        let val = metric === 'co2Value' ? logMorning.co2Value : logMorning.value;
+                        if (val != null) val = parseFloat((val + corr).toFixed(2));
                         dataMorning.push(val ?? null);
                         colorMorning.push((val < eq.minThreshold || val > eq.maxThreshold) && metric === 'value' ? '#e53e3e' : '#ff6b00');
                     } else {
@@ -1727,7 +1738,8 @@
                     }
                     
                     if (logAfternoon) {
-                        const val = metric === 'co2Value' ? logAfternoon.co2Value : logAfternoon.value;
+                        let val = metric === 'co2Value' ? logAfternoon.co2Value : logAfternoon.value;
+                        if (val != null) val = parseFloat((val + corr).toFixed(2));
                         dataAfternoon.push(val ?? null);
                         colorAfternoon.push((val < eq.minThreshold || val > eq.maxThreshold) && metric === 'value' ? '#e53e3e' : '#3498db');
                     } else {
@@ -1786,13 +1798,46 @@
                             x: { title: { display: true, text: 'วันที่บันทึก' } }
                         },
                         plugins: {
+                            legend: {
+                                labels: {
+                                    usePointStyle: true,
+                                    pointStyleWidth: 45,
+                                    boxWidth: 45,
+                                    padding: 25,
+                                    generateLabels: function(chart) {
+                                        return chart.data.datasets.map((dataset, i) => {
+                                            const isAfternoon = dataset.label.includes('บ่าย');
+                                            const color = isAfternoon ? '#3498db' : '#ff6b00';
+                                            const cvs = document.createElement('canvas');
+                                            cvs.width = 45; cvs.height = 16;
+                                            const ctx = cvs.getContext('2d');
+                                            ctx.strokeStyle = color;
+                                            ctx.lineWidth = 2;
+                                            if (isAfternoon) ctx.setLineDash([5, 5]);
+                                            ctx.beginPath(); ctx.moveTo(0, 8); ctx.lineTo(45, 8); ctx.stroke();
+                                            ctx.setLineDash([]);
+                                            ctx.fillStyle = color;
+                                            ctx.beginPath(); ctx.arc(22.5, 8, 4.5, 0, 2 * Math.PI); ctx.fill();
+                                            return {
+                                                text: '  ' + dataset.label,
+                                                fillStyle: color,
+                                                strokeStyle: color,
+                                                lineWidth: 2,
+                                                hidden: !chart.isDatasetVisible(i),
+                                                datasetIndex: i,
+                                                pointStyle: cvs
+                                            };
+                                        });
+                                    }
+                                }
+                            },
                             annotation: {
                                 annotations: metric === 'value' ? {
                                     safeBox: { type: 'box', yMin: Math.min(eq.minThreshold, eq.maxThreshold), yMax: Math.max(eq.minThreshold, eq.maxThreshold), backgroundColor: 'rgba(56, 161, 105, 0.05)', borderWidth: 0 },
                                     baseLine: {
                                         type: 'line', yMin: baseline, yMax: baseline,
-                                        borderColor: 'rgba(255, 107, 0, 0.7)', borderWidth: 2, borderDash: [6, 4],
-                                        label: { content: 'Baseline', enabled: true, position: 'end', backgroundColor: 'rgba(255, 107, 0, 0.8)', font: { size: 10 } }
+                                        borderColor: 'rgba(40, 167, 69, 0.8)', borderWidth: 2, borderDash: [6, 4],
+                                        label: { content: 'Baseline', enabled: true, position: 'end', backgroundColor: 'rgba(40, 167, 69, 0.8)', font: { size: 10 } }
                                     }
                                 } : {}
                             }
@@ -1851,14 +1896,15 @@
                     const dataMorning = [];
                     const dataAfternoon = [];
                     
+                    const corr = parseFloat(eq.correctionValue) || 0;
                     for (let i = 1; i <= daysInMonth; i++) {
                         labels.push(i.toString());
                         const dateStr = `${year}-${month}-${i.toString().padStart(2, '0')}`;
                         const dailyLogs = logs.filter(l => l.dateKey === dateStr || l.timestamp.startsWith(dateStr));
                         const logM = dailyLogs.find(l => l.shift === 'เช้า' || (!l.shift && l.timestamp.includes('T0')));
                         const logA = dailyLogs.find(l => l.shift === 'บ่าย');
-                        dataMorning.push(logM ? logM.value : null);
-                        dataAfternoon.push(logA ? logA.value : null);
+                        dataMorning.push(logM ? parseFloat((parseFloat(logM.value) + corr).toFixed(2)) : null);
+                        dataAfternoon.push(logA ? parseFloat((parseFloat(logA.value) + corr).toFixed(2)) : null);
                     }
 
                     const tempCanvas = document.createElement('canvas');
@@ -1893,13 +1939,46 @@
                                 x: { title: { display: true, text: 'วันที่บันทึก' } }
                             },
                             plugins: {
+                                legend: {
+                                    labels: {
+                                        usePointStyle: true,
+                                        pointStyleWidth: 45,
+                                        boxWidth: 45,
+                                        padding: 25,
+                                        generateLabels: function(chart) {
+                                            return chart.data.datasets.map((dataset, i) => {
+                                                const isAfternoon = dataset.label.includes('บ่าย');
+                                                const color = isAfternoon ? '#3498db' : '#ff6b00';
+                                                const cvs = document.createElement('canvas');
+                                                cvs.width = 45; cvs.height = 16;
+                                                const ctx = cvs.getContext('2d');
+                                                ctx.strokeStyle = color;
+                                                ctx.lineWidth = 2;
+                                                if (isAfternoon) ctx.setLineDash([5, 5]);
+                                                ctx.beginPath(); ctx.moveTo(0, 8); ctx.lineTo(45, 8); ctx.stroke();
+                                                ctx.setLineDash([]);
+                                                ctx.fillStyle = color;
+                                                ctx.beginPath(); ctx.arc(22.5, 8, 4.5, 0, 2 * Math.PI); ctx.fill();
+                                                return {
+                                                    text: '  ' + dataset.label,
+                                                    fillStyle: color,
+                                                    strokeStyle: color,
+                                                    lineWidth: 2,
+                                                    hidden: !chart.isDatasetVisible(i),
+                                                    datasetIndex: i,
+                                                    pointStyle: cvs
+                                                };
+                                            });
+                                        }
+                                    }
+                                },
                                 annotation: {
                                     annotations: {
                                         safeBox: { type: 'box', yMin: Math.min(eq.minThreshold, eq.maxThreshold), yMax: Math.max(eq.minThreshold, eq.maxThreshold), backgroundColor: 'rgba(56, 161, 105, 0.05)', borderWidth: 0 },
                                         baseLine: {
                                             type: 'line', yMin: baseline, yMax: baseline,
-                                            borderColor: 'rgba(255, 107, 0, 0.7)', borderWidth: 2, borderDash: [6, 4],
-                                            label: { content: 'Baseline', enabled: true, position: 'end', backgroundColor: 'rgba(255, 107, 0, 0.8)', font: { size: 10 } }
+                                            borderColor: 'rgba(40, 167, 69, 0.8)', borderWidth: 2, borderDash: [6, 4],
+                                            label: { content: 'Baseline', enabled: true, position: 'end', backgroundColor: 'rgba(40, 167, 69, 0.8)', font: { size: 10 } }
                                         }
                                     }
                                 }
