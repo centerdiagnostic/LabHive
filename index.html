@@ -1545,38 +1545,86 @@
 
         app.usage = {
             async saveGuestUsage(equipId, eqData) {
+                const btn = document.getElementById('btn-save-usage');
                 const name = document.getElementById('usage-name').value;
                 const purpose = document.getElementById('usage-purpose').value;
                 const start = document.getElementById('usage-start').value;
                 const end = document.getElementById('usage-end').value;
                 const count = document.getElementById('usage-count').value;
 
-                if (!name || !purpose || !start || !end) return app.ui.showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'error');
+                if (!name || !purpose || !start || !end) {
+                    return app.ui.showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'error');
+                }
 
                 try {
-                    await addDoc(collection(db, "usageLogs"), {
+                    btn.disabled = true;
+                    btn.innerText = 'กำลังบันทึกข้อมูล...';
+
+                    await addDoc(collection(db, "logs"), {
+                        type: 'usage_log',
                         equipmentId: equipId,
                         name, purpose, start, end, count,
                         timestamp: new Date().toISOString(),
                         owner: eqData.owner
                     });
-                    app.ui.showToast('บันทึกการใช้งานสำเร็จ', 'success');
+                    
+                    app.ui.openModal('modal-success');
+                    
                     document.getElementById('usage-name').value = '';
                     document.getElementById('usage-purpose').value = '';
-                } catch(e) { app.ui.showToast('บันทึกล้มเหลว', 'error'); }
+                    document.getElementById('usage-start').value = '';
+                    document.getElementById('usage-end').value = '';
+                    document.getElementById('usage-count').value = '1';
+                } catch(e) { 
+                    console.error("Save usage error:", e);
+                    app.ui.showToast('บันทึกล้มเหลว: ' + e.message, 'error'); 
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = 'บันทึกการใช้งาน';
+                }
             },
             async showHistory(id) {
+                app.ui.closeModal('modal-equip-detail'); 
                 app.ui.showToast('กำลังโหลด Logbook...');
-                const qSnap = await getDocs(query(collection(db, "usageLogs"), where("equipmentId", "==", id)));
-                const logs = qSnap.docs.map(d => d.data()).sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
-                const tbody = document.querySelector('#table-usage-history tbody');
-                tbody.innerHTML = '';
-                logs.forEach(l => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `<td>${l.name}</td><td>${l.purpose}</td><td>${new Date(l.start).toLocaleString()} - ${new Date(l.end).toLocaleString()}</td><td>${l.count}</td>`;
-                    tbody.appendChild(tr);
-                });
-                app.ui.openModal('modal-usage-history');
+                
+                try {
+                    const tbody = document.querySelector('#table-usage-history tbody');
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center">กำลังโหลดข้อมูล...</td></tr>';
+                    
+                    const [logsSnap, usageLogsSnap] = await Promise.all([
+                        getDocs(query(collection(db, "logs"), where("equipmentId", "==", id))),
+                        getDocs(query(collection(db, "usageLogs"), where("equipmentId", "==", id))).catch(() => ({ docs: [] }))
+                    ]);
+                    
+                    let allLogs = [
+                        ...logsSnap.docs.map(d => d.data()).filter(d => d.type === 'usage_log' || d.purpose),
+                        ...usageLogsSnap.docs.map(d => d.data())
+                    ];
+                    
+                    allLogs.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    
+                    tbody.innerHTML = '';
+                    if (allLogs.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted" style="padding: 2rem;">ยังไม่มีประวัติการใช้งาน</td></tr>';
+                    } else {
+                        allLogs.forEach(l => {
+                            const tr = document.createElement('tr');
+                            const startDate = l.start ? new Date(l.start).toLocaleString('th-TH', {dateStyle: 'short', timeStyle: 'short'}) : '-';
+                            const endDate = l.end ? new Date(l.end).toLocaleString('th-TH', {dateStyle: 'short', timeStyle: 'short'}) : '-';
+                            tr.innerHTML = `
+                                <td><strong>${l.name || '-'}</strong></td>
+                                <td>${l.purpose || '-'}</td>
+                                <td>${startDate}<br>ถึง ${endDate}</td>
+                                <td class="text-center">${l.count || 1}</td>
+                            `;
+                            tbody.appendChild(tr);
+                        });
+                    }
+                    app.ui.openModal('modal-usage-history');
+                } catch (e) {
+                    console.error("Load logbook error:", e);
+                    app.ui.showToast('ดึงข้อมูลล้มเหลว', 'error');
+                }
             }
         };
 
