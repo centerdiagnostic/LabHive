@@ -1050,6 +1050,7 @@
                 if (eq.type === 'Instrument') {
                     footerActions.innerHTML = `
                         <button class="btn btn-outline" onclick="app.usage.showHistory('${eq.id}')"><i data-lucide="history"></i> ดู Logbook การใช้งาน</button>
+                        <button class="btn btn-outline" style="border-color: #38a169; color: #38a169;" onclick="app.export.generateUsagePDF('${eq.id}')"><i data-lucide="file-down"></i> ออกรายงาน Logbook</button>
                         <button class="btn btn-outline" onclick="app.qrcode.show('${eq.id}')"><i data-lucide="qr-code"></i> QR Code</button>
                         <button class="btn btn-icon" onclick="app.equipment.edit('${eq.id}')"><i data-lucide="edit-2"></i> แก้ไข</button>
                         <button class="btn btn-icon text-danger" onclick="app.equipment.softDelete('${eq.id}')"><i data-lucide="trash-2"></i> ลบ</button>
@@ -1923,6 +1924,62 @@
                         window.URL.revokeObjectURL(url);
                         
                         app.ui.showToast(`ส่งออกรายงานประจำเดือน ${selectedMonth} เรียบร้อย`);
+                    }
+                } catch (err) {
+                    console.error(err);
+                    app.ui.showToast('เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์ PDF', 'error');
+                }
+            },
+            async generateUsagePDF(id) {
+                const eq = app.data.equipment.find(e => e.id === id);
+                if(!eq) return;
+
+                app.ui.showToast('กำลังรวบรวมข้อมูลและสร้าง PDF โปรดรอสักครู่...');
+
+                try {
+                    const [logsSnap, usageLogsSnap] = await Promise.all([
+                        getDocs(query(collection(db, "logs"), where("equipmentId", "==", id))),
+                        getDocs(query(collection(db, "usageLogs"), where("equipmentId", "==", id))).catch(() => ({ docs: [] }))
+                    ]);
+                    
+                    let logs = [
+                        ...logsSnap.docs.map(d => d.data()).filter(d => d.type === 'usage_log' || d.purpose),
+                        ...usageLogsSnap.docs.map(d => d.data())
+                    ];
+                    
+                    // เรียงจากเก่าไปใหม่ เพื่อให้ในรายงานเป็นลำดับเวลา (Chronological)
+                    logs.sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+                    if(logs.length === 0) {
+                        return app.ui.showToast('ไม่พบประวัติการใช้งานสำหรับเครื่องมือนี้ ไม่สามารถออกรายงานได้', 'error');
+                    }
+
+                    const response = await fetch('https://intraflow.onrender.com/api/export-usage-log', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ eq, logs })
+                    });
+
+                    if (!response.ok) throw new Error('Network response was not ok');
+
+                    const result = await response.json();
+                    if (result.error) throw new Error(result.error);
+                    
+                    if (result.pdfBase64) {
+                        const dataUri = "data:application/pdf;base64," + result.pdfBase64;
+                        const pdfRes = await fetch(dataUri);
+                        const blob = await pdfRes.blob();
+                        
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = result.filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        window.URL.revokeObjectURL(url);
+                        
+                        app.ui.showToast('ดาวน์โหลดรายงาน Logbook สำเร็จ', 'success');
                     }
                 } catch (err) {
                     console.error(err);
