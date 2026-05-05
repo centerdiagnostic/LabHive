@@ -386,6 +386,32 @@
                         <i data-lucide="scan"></i> สแกน QR โค้ดถัดไป
                     </button>
                 </div>
+
+                <div id="guest-usage-form-area" class="hidden">
+                    <div class="form-group text-left">
+                        <label class="form-label">ชื่อ-นามสกุล ผู้ใช้งาน</label>
+                        <input type="text" id="usage-name" class="form-control" required>
+                    </div>
+                    <div class="form-group text-left">
+                        <label class="form-label">วัตถุประสงค์การใช้งาน</label>
+                        <input type="text" id="usage-purpose" class="form-control" required>
+                    </div>
+                    <div class="flex gap-2 text-left" style="margin-bottom: 1rem;">
+                        <div style="flex:1">
+                            <label class="form-label">เริ่ม (วัน/เวลา)</label>
+                            <input type="datetime-local" id="usage-start" class="form-control">
+                        </div>
+                        <div style="flex:1">
+                            <label class="form-label">ถึง (วัน/เวลา)</label>
+                            <input type="datetime-local" id="usage-end" class="form-control">
+                        </div>
+                    </div>
+                    <div class="form-group text-left">
+                        <label class="form-label">จำนวนผู้ร่วมใช้งาน (คน)</label>
+                        <input type="number" id="usage-count" class="form-control" value="1">
+                    </div>
+                    <button id="btn-save-usage" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 1rem; font-size: 1.1rem; margin-bottom: 1rem;">บันทึกการใช้งาน</button>
+                </div>
             </div>
         </div>
     </div>
@@ -511,6 +537,7 @@
                                 <option value="Incubator">Incubator</option>
                                 <option value="Incubator CO2">Incubator CO₂</option>
                                 <option value="Biosafety cabinet">Biosafety cabinet</option>
+                                <option value="Instrument">เครื่องมือ/อุปกรณ์ (Logbook)</option>
                             </select>
                         </div>
                         <div class="form-group" style="flex: 1;">
@@ -658,6 +685,25 @@
             <h3 style="margin-bottom: 0.5rem;">บันทึกสำเร็จ!</h3>
             <p style="color: var(--text-muted); margin-bottom: 1.5rem;">ข้อมูลถูกบันทึกเข้าระบบเรียบร้อยแล้ว</p>
             <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="app.ui.closeModal('modal-success')">ตกลง</button>
+        </div>
+    </div>
+
+    <div id="modal-usage-history" class="modal-overlay">
+        <div class="modal" style="max-width: 800px; width: 95%;">
+            <div class="modal-header">
+                <h3>ประวัติการเข้าใช้งานเครื่องมือ</h3>
+                <button class="btn-icon" onclick="app.ui.closeModal('modal-usage-history')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-wrapper">
+                    <table id="table-usage-history">
+                        <thead>
+                            <tr><th>ชื่อผู้ใช้</th><th>วัตถุประสงค์</th><th>ช่วงเวลา</th><th>จำนวน</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1001,15 +1047,24 @@
                 `;
 
                 const footerActions = document.getElementById('detail-footer-actions');
-                footerActions.innerHTML = `
-                    <button class="btn btn-primary" onclick="app.ui.closeModal('modal-equip-detail'); app.logs.openModal('${eq.id}')"><i data-lucide="activity"></i> บันทึกค่า</button>
-                    <button class="btn btn-outline" onclick="app.logs.showHistory('${eq.id}')"><i data-lucide="history"></i> ประวัติ</button>
-                    <button class="btn btn-outline" onclick="app.equipment.showAnalytics('${eq.id}')"><i data-lucide="bar-chart-2"></i> ดูกราฟ</button>
-                    <button class="btn btn-outline" onclick="app.qrcode.show('${eq.id}')"><i data-lucide="qr-code"></i> QR Code</button>
-                    <button class="btn btn-outline" style="border-color: #3498db; color: #3498db;" onclick="app.export.generateIndividualPDF('${eq.id}')"><i data-lucide="file-down"></i> ออกรายงานพร้อมกราฟ</button>
-                    <button class="btn btn-icon" onclick="app.equipment.edit('${eq.id}')"><i data-lucide="edit-2"></i> แก้ไข</button>
-                    <button class="btn btn-icon text-danger" onclick="app.equipment.softDelete('${eq.id}')"><i data-lucide="trash-2"></i> ลบ</button>
-                `;
+                if (eq.type === 'Instrument') {
+                    footerActions.innerHTML = `
+                        <button class="btn btn-outline" onclick="app.usage.showHistory('${eq.id}')"><i data-lucide="history"></i> ดู Logbook การใช้งาน</button>
+                        <button class="btn btn-outline" onclick="app.qrcode.show('${eq.id}')"><i data-lucide="qr-code"></i> QR Code</button>
+                        <button class="btn btn-icon" onclick="app.equipment.edit('${eq.id}')"><i data-lucide="edit-2"></i> แก้ไข</button>
+                        <button class="btn btn-icon text-danger" onclick="app.equipment.softDelete('${eq.id}')"><i data-lucide="trash-2"></i> ลบ</button>
+                    `;
+                } else {
+                    footerActions.innerHTML = `
+                        <button class="btn btn-primary" onclick="app.ui.closeModal('modal-equip-detail'); app.logs.openModal('${eq.id}')"><i data-lucide="activity"></i> บันทึกค่า</button>
+                        <button class="btn btn-outline" onclick="app.logs.showHistory('${eq.id}')"><i data-lucide="history"></i> ประวัติ</button>
+                        <button class="btn btn-outline" onclick="app.equipment.showAnalytics('${eq.id}')"><i data-lucide="bar-chart-2"></i> ดูกราฟ</button>
+                        <button class="btn btn-outline" onclick="app.qrcode.show('${eq.id}')"><i data-lucide="qr-code"></i> QR Code</button>
+                        <button class="btn btn-outline" style="border-color: #3498db; color: #3498db;" onclick="app.export.generateIndividualPDF('${eq.id}')"><i data-lucide="file-down"></i> ออกรายงานพร้อมกราฟ</button>
+                        <button class="btn btn-icon" onclick="app.equipment.edit('${eq.id}')"><i data-lucide="edit-2"></i> แก้ไข</button>
+                        <button class="btn btn-icon text-danger" onclick="app.equipment.softDelete('${eq.id}')"><i data-lucide="trash-2"></i> ลบ</button>
+                    `;
+                }
 
                 lucide.createIcons({root: footerActions});
                 app.ui.openModal('modal-equip-detail');
@@ -1488,6 +1543,43 @@
             }
         };
 
+        app.usage = {
+            async saveGuestUsage(equipId, eqData) {
+                const name = document.getElementById('usage-name').value;
+                const purpose = document.getElementById('usage-purpose').value;
+                const start = document.getElementById('usage-start').value;
+                const end = document.getElementById('usage-end').value;
+                const count = document.getElementById('usage-count').value;
+
+                if (!name || !purpose || !start || !end) return app.ui.showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'error');
+
+                try {
+                    await addDoc(collection(db, "usageLogs"), {
+                        equipmentId: equipId,
+                        name, purpose, start, end, count,
+                        timestamp: new Date().toISOString(),
+                        owner: eqData.owner
+                    });
+                    app.ui.showToast('บันทึกการใช้งานสำเร็จ', 'success');
+                    document.getElementById('usage-name').value = '';
+                    document.getElementById('usage-purpose').value = '';
+                } catch(e) { app.ui.showToast('บันทึกล้มเหลว', 'error'); }
+            },
+            async showHistory(id) {
+                app.ui.showToast('กำลังโหลด Logbook...');
+                const qSnap = await getDocs(query(collection(db, "usageLogs"), where("equipmentId", "==", id)));
+                const logs = qSnap.docs.map(d => d.data()).sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+                const tbody = document.querySelector('#table-usage-history tbody');
+                tbody.innerHTML = '';
+                logs.forEach(l => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td>${l.name}</td><td>${l.purpose}</td><td>${new Date(l.start).toLocaleString()} - ${new Date(l.end).toLocaleString()}</td><td>${l.count}</td>`;
+                    tbody.appendChild(tr);
+                });
+                app.ui.openModal('modal-usage-history');
+            }
+        };
+
         app.alerts = {
             initListener() {
                 let q = query(collection(db, app.collections.alerts));
@@ -1887,13 +1979,18 @@
                                 const eq = {id: docRef.id, ...docRef.data()};
                                 guestName.innerText = eq.name;
                                 document.getElementById('guest-equip-asset').innerText = "ครุภัณฑ์: " + (eq.assetNumber || '-');
-                                document.getElementById('guest-equip-range').innerText = `ช่วงปลอดภัย: [${eq.minThreshold} - ${eq.maxThreshold}]`;
-                                
-                                const currentHour = new Date().getHours();
-                                document.getElementById('guest-log-shift').value = currentHour < 12 ? 'เช้า' : 'บ่าย';
-                                
-                                document.getElementById('guest-form-area').classList.remove('hidden');
-                                document.getElementById('btn-save-guest').onclick = () => app.logs.saveGuestLog(scanId, eq);
+
+                                if (eq.type === 'Instrument') {
+                                    document.getElementById('guest-equip-range').innerText = `โหมดบันทึกการใช้งาน (Usage Logbook)`;
+                                    document.getElementById('guest-usage-form-area').classList.remove('hidden');
+                                    document.getElementById('btn-save-usage').onclick = () => app.usage.saveGuestUsage(scanId, eq);
+                                } else {
+                                    document.getElementById('guest-equip-range').innerText = `ช่วงปลอดภัย: [${eq.minThreshold} - ${eq.maxThreshold}]`;
+                                    const currentHour = new Date().getHours();
+                                    document.getElementById('guest-log-shift').value = currentHour < 12 ? 'เช้า' : 'บ่าย';
+                                    document.getElementById('guest-form-area').classList.remove('hidden');
+                                    document.getElementById('btn-save-guest').onclick = () => app.logs.saveGuestLog(scanId, eq);
+                                }
                                 unsubAuth();
                             } else {
                                 guestName.innerText = "ไม่พบข้อมูลอุปกรณ์";
