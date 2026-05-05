@@ -192,6 +192,20 @@
         .detail-label { color: var(--text-muted); font-size: 0.9rem; font-weight: 500; }
         .detail-value { color: var(--text-main); font-weight: 600; text-align: right; }
 
+        /* หน้าจอโหลด (Loading Overlay) */
+        #loading-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 99999; opacity: 0; pointer-events: none; transition: opacity 0.3s; color: white;
+        }
+        #loading-overlay.active { opacity: 1; pointer-events: all; }
+        .spinner {
+            width: 55px; height: 55px; border: 5px solid rgba(255,255,255,0.2);
+            border-radius: 50%; border-top-color: var(--primary); animation: spin 1s ease-in-out infinite;
+            margin-bottom: 1.5rem;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
     </style>
 </head>
 <body>
@@ -707,6 +721,12 @@
         </div>
     </div>
 
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <h3 id="loading-text" style="font-weight: 500; letter-spacing: 0.5px;">กำลังประมวลผล...</h3>
+        <p style="font-size: 0.95rem; color: #cbd5e0; margin-top: 0.5rem;">โปรดอย่าปิดหน้าต่างนี้ จนกว่าการดาวน์โหลดจะเสร็จสิ้น</p>
+    </div>
+
     <div id="toast-container" class="toast-container"></div>
 
     <audio id="audio-alert" src="https://raw.githubusercontent.com/rafael-m-silva/alarm-clock/master/public/alarm.mp3"></audio>
@@ -757,6 +777,13 @@
         // 2. โมดูลจัดการหน้าจอผู้ใช้ (UI & UTILITY MODULE)
         // ==========================================
         app.ui = {
+            showLoading(message = 'กำลังประมวลผล...') {
+                document.getElementById('loading-text').innerText = message;
+                document.getElementById('loading-overlay').classList.add('active');
+            },
+            hideLoading() {
+                document.getElementById('loading-overlay').classList.remove('active');
+            },
             showToast(message, type = 'success') {
                 const container = document.getElementById('toast-container');
                 const toast = document.createElement('div');
@@ -1934,7 +1961,7 @@
                 const eq = app.data.equipment.find(e => e.id === id);
                 if(!eq) return;
 
-                app.ui.showToast('กำลังรวบรวมข้อมูลและสร้าง PDF โปรดรอสักครู่...');
+                app.ui.showLoading('กำลังรวบรวมข้อมูลและสร้าง PDF...');
 
                 try {
                     const [logsSnap, usageLogsSnap] = await Promise.all([
@@ -1984,6 +2011,8 @@
                 } catch (err) {
                     console.error(err);
                     app.ui.showToast('เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์ PDF', 'error');
+                } finally {
+                    app.ui.hideLoading();
                 }
             }
         };
